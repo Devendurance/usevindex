@@ -11,8 +11,7 @@ export default function LandingPage() {
       <main id="main-content">
         <section className="marketing-hero mesh-field">
           <div className="content-wrap marketing-hero__inner">
-            <h1>DETECT THE THREAT.<br />EXECUTE THE ESCAPE.</h1>
-            <div className="marketing-hero__route"><ProtectedRoute variant="hero" /></div>
+            <h1>Detect the threat.<br />Execute the escape.</h1>
             <p className="marketing-hero__copy">Vindex watches supported DeFi positions, confirms converging danger and routes a verified exit through KeeperHub.</p>
             <Link className="primary-cta marketing-hero__action" href="/setup">RUN A DRY RUN</Link>
             <ProofRow />

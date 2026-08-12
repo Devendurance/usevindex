@@ -67,7 +67,7 @@ typography:
     letterSpacing: "0px"
 rounded:
   tile: "6px"
-  control: "8px"
+  control: "1px"
   circle: "9999px"
 spacing:
   base: "4px"
@@ -76,7 +76,7 @@ spacing:
   md: "24px"
   lg: "32px"
   xl: "48px"
-  hero: "96px"
+  hero: "64px–76px"
 components:
   primary-cta:
     backgroundColor: "{colors.primary}"
@@ -124,7 +124,7 @@ This version keeps the supplied visual direction as well as its formal design me
 - tight geometric grotesk display type;
 - centred, symmetric hero composition;
 - generous whitespace and calm vertical rhythm;
-- one hand-drawn ink squiggle running from headline toward the CTA;
+- no decorative line competing with the headline, supporting copy or CTA;
 - thin `1–1.5px` black outlines on controls and feature tiles;
 - red/cyan chromatic-aberration outline on the primary CTA only;
 - small outlined square icon tiles;
@@ -137,7 +137,7 @@ The visual language remains deliberately close to the reference. The adaptation 
 
 - spending becomes supported DeFi position protection;
 - budgeting features become threat monitoring and confirmation;
-- a lifestyle-finance squiggle becomes the Protected Route;
+- the semantic Protected Route remains in explanatory product sections rather than decorating the hero;
 - generic feature tiles become `WATCH`, `CONFIRM` and `VERIFY`;
 - the CTA changes from generic onboarding to `RUN A DRY RUN`;
 - the visual proof moment becomes the Vindex Rescue Receipt;
@@ -164,8 +164,8 @@ WATCH → CONFIRM → EXIT → VERIFY
 Recommended headline:
 
 ```text
-DETECT THE THREAT.
-EXECUTE THE ESCAPE.
+Detect the threat.
+Execute the escape.
 ```
 
 Supporting copy:
@@ -234,6 +234,8 @@ Use it for:
 - large rescued amount;
 - major section headings.
 
+The shared `hero-display` treatment is reserved for the marketing headline: Inter Tight, exactly two intentional lines, approximately `38px–76px` across responsive widths, `800` weight, tight negative tracking and a `0.96` line-height. Keep section headings one step below this scale.
+
 ### Inter
 
 Use **Inter** for:
@@ -264,7 +266,7 @@ Use **Inter** for:
 - Cream base visible around the content.
 - Use the blurred mesh as a low-contrast field, not as a panel background.
 - Base spacing unit: `4px`.
-- Hero top padding: approximately `96px` on desktop.
+- Hero top padding: approximately `64px–76px` on desktop.
 
 ### Navigation
 
@@ -272,8 +274,9 @@ Use **Inter** for:
 - centred or balanced text links;
 - secondary `Sign in` or `View demo` control on the right;
 - transparent background directly over the cream/mesh field;
-- `15px` Inter, sentence case;
+- compact `14px–15px` Inter, sentence case;
 - hover changes opacity to `0.6` without underline animation.
+- every clickable Vindex logo links to the landing page at `/`, including from product routes.
 
 Replace the source star/asterisk mark with the Vindex symbol when available. The symbol should suggest a protected route or guarded exit—not a generic sparkle, shield or crypto node.
 
@@ -281,19 +284,19 @@ Replace the source star/asterisk mark with the Vindex symbol when available. The
 
 Use a centred single-column hero:
 
-1. small Vindex mark and wordmark;
-2. headline;
-3. Protected Route squiggle;
-4. short explanatory copy;
-5. primary dry-run/protection CTA;
-6. three-state feature row;
-7. scroll or route indicator.
+1. headline;
+2. short explanatory copy;
+3. primary dry-run/protection CTA;
+4. three-state feature row;
+5. scroll indicator.
+
+Do not place a decorative line, underline or route SVG in the hero. The reduced composition is intentional: the headline must remain exactly two visual lines on tablet and desktop, and the proof row must fit within the first viewport at the supported desktop and tablet sizes.
 
 Recommended hero headline:
 
 ```text
-DETECT THE THREAT.
-EXECUTE THE ESCAPE.
+Detect the threat.
+Execute the escape.
 ```
 
 Supporting copy:
@@ -346,7 +349,7 @@ The product should feel approachable because the visual language is warm and the
 ## Shapes
 
 - Feature icon tiles: `6px` radius.
-- Buttons and inputs: `8px` radius.
+- Buttons and inputs: sharp `1px` radius.
 - Scroll/route indicator: circular `50%` radius.
 - No additional radius values.
 - No pills.
@@ -372,7 +375,7 @@ Rules:
 - white label;
 - `14px 32px` padding;
 - `48px` height;
-- `8px` radius;
+- sharp `1px` radius;
 - `1.5px` Ink border;
 - red offset edge on top/left;
 - cyan offset edge on bottom/right;
@@ -395,15 +398,13 @@ Preserve:
 - Cream background;
 - Ink text;
 - `1.5px` Ink border;
-- `8px` radius;
-- faint top-left doubled outline;
+- sharp `1px` radius;
+- faint layered outline offset top-left and bottom-right;
 - hover inversion to Ink fill and white text.
 
-### Protected Route squiggle
+### Protected Route diagram
 
-The reference’s one hand-drawn squiggle remains, but it now has a job.
-
-It begins below the hero headline and travels toward the CTA through three labelled waypoints:
+The hand-drawn route is a semantic product diagram reserved for explanatory sections below the hero. It travels through three labelled waypoints:
 
 ```text
 WATCH → CONFIRM → SAFE WALLET
@@ -411,12 +412,13 @@ WATCH → CONFIRM → SAFE WALLET
 
 Rules:
 
-- one route per page;
+- no route diagram in the hero;
+- use the route only where the surrounding content explains the supported exit;
 - use SVG, not CSS text decoration;
 - keep it hand-drawn but controlled;
 - no network-node clusters;
 - no random looping decoration;
-- its endpoint must visually terminate at the CTA or receipt.
+- its endpoint must visually terminate at the safe-wallet destination or receipt.
 
 The route should read as a single escape path, not a generic analytics trend line.
 
@@ -487,7 +489,7 @@ SAFE WALLET CHECK    / PENDING
 ## Interaction & Motion
 
 - Mesh remains static or changes extremely slowly; no moving blobs.
-- The route squiggle may draw once on page load, then remain still.
+- A semantic route diagram may draw once when its explanatory section enters view, then remain still.
 - Primary CTA glitch offset increases by approximately `1px` on hover.
 - Threat-state changes should use a short opacity or border transition, not a dramatic alarm animation.
 - Rescue Receipt rows may reveal in execution order, but the full status must remain accessible.
@@ -500,23 +502,23 @@ SAFE WALLET CHECK    / PENDING
 
 - Navigation collapses to a hamburger.
 - Logo and primary CTA remain visible.
-- Display 1 reduces to approximately `32px`.
+- The hero display remains between `38px–42px`.
 - Body Large reduces to `16px`.
 - Feature row stacks vertically.
 - Icon tiles remain left-aligned beside their text.
-- The route squiggle simplifies or drops below the headline.
+- The hero remains free of route-line decoration.
 - The scroll indicator is hidden.
 
 ### Tablet: `600px–1023px`
 
 - Display 1 approximately `44px`.
 - Feature row becomes a 2+1 arrangement or a readable horizontal sequence.
-- Route labels remain visible.
+- Semantic route labels remain visible in explanatory sections.
 
 ### Desktop: `1024px+`
 
 - Full 3-column feature row.
-- Full `56px` display headline.
+- Hero display scales up to `76px` while retaining exactly two lines.
 - Maximum content width `1140px`.
 - Full route and receipt composition.
 
@@ -525,6 +527,8 @@ SAFE WALLET CHECK    / PENDING
 - Minimum `44px × 44px`.
 - Recommended `48px × 48px`.
 - At least `8px` between controls.
+
+Text buttons use the same minimum touch target and a restrained underline/opacity treatment. Icon-only controls keep their square outlined treatment and must retain an accessible label.
 
 ## Accessibility
 
@@ -571,7 +575,7 @@ When generating or implementing Vindex screens, preserve the formal substrate an
 1. Use `#F7F3EC` as the page background.
 2. Use Inter Tight only for display headings and Inter for UI/body.
 3. Keep the soft Blue/Lavender/Gold mesh, but treat it as a low-opacity signal field.
-4. Use one hand-drawn Protected Route squiggle from `WATCH` to `SAFE WALLET`.
+4. Keep the hero free of decorative lines; use the hand-drawn Protected Route only as a semantic diagram in explanatory sections.
 5. Keep thin `1–1.5px` Ink borders and no conventional shadows.
 6. Keep the Red/Cyan chromatic frame exclusive to the primary CTA.
 7. Replace spending icons with signal, confirmation, route and receipt glyphs.

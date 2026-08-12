@@ -15,7 +15,7 @@
   --container: 1140px;
   --radius-tile: 6px;
   --radius-control: 1px;
-  --type-hero: clamp(3.25rem, 7.2vw, 6.5rem);
+  --type-hero: clamp(2.375rem, 5.3vw, 4.75rem);
   --type-display-1: clamp(2.5rem, 5vw, 4.75rem);
   --type-display-2: clamp(1.8rem, 3.4vw, 3rem);
 }
@@ -161,8 +161,9 @@ h3 {
 .hero-display,
 .marketing-hero h1 {
   font-size: var(--type-hero);
-  line-height: 0.9;
-  font-weight: 850;
+  line-height: 0.96;
+  font-weight: 800;
+  letter-spacing: -0.055em;
 }
 
 p {
@@ -301,6 +302,10 @@ p {
   pointer-events: none;
 }
 
+.secondary-button--layered {
+  isolation: isolate;
+}
+
 .secondary-button::before {
   top: -3px;
   left: -3px;
@@ -433,7 +438,7 @@ p {
   display: inline-flex;
   align-items: center;
   color: var(--ink);
-  font-size: 0.9rem;
+  font-size: 0.9375rem;
   transition: opacity 180ms ease;
 }
 
@@ -453,7 +458,7 @@ p {
 .site-nav__demo {
   min-height: 42px;
   padding-inline: 16px;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
 }
 
 .site-nav__menu-button {
@@ -481,7 +486,7 @@ p {
   display: flex;
   align-items: center;
   isolation: isolate;
-  padding: 76px 0 82px;
+  padding: 64px 0 72px;
   overflow: hidden;
   text-align: center;
 }
@@ -512,26 +517,28 @@ p {
 .marketing-hero__inner {
   position: relative;
   z-index: 1;
-  width: min(100%, 920px);
+  width: min(calc(100% - 48px), 920px);
   margin: 0 auto;
 }
 
 .marketing-hero h1 {
-  max-width: 920px;
+  max-width: 820px;
   margin: 0 auto;
+}
+
+@media (min-width: 701px) and (max-width: 800px) {
+  .hero-display,
+  .marketing-hero h1 {
+    font-size: clamp(2.625rem, 5.3vw, 2.75rem);
+  }
 }
 
 .marketing-hero__copy {
   max-width: 550px;
-  margin: 0 auto;
+  margin: 32px auto 0;
   color: var(--muted);
   font-size: 1.05rem;
   line-height: 1.55;
-}
-
-.marketing-hero__route {
-  max-width: 520px;
-  margin: 10px auto -2px;
 }
 
 .marketing-hero__action {
@@ -576,14 +583,6 @@ p {
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-.protected-route--hero {
-  min-height: 96px;
-}
-
-.protected-route--hero .protected-route__line path {
-  stroke-width: 1.8;
 }
 
 .protected-route__labels {
@@ -1418,13 +1417,18 @@ p {
     padding: 54px 0 46px;
   }
 
-  .marketing-hero__copy {
-    font-size: 0.98rem;
+  .marketing-hero__inner {
+    width: min(calc(100% - 40px), 920px);
   }
 
-  .marketing-hero__route {
-    max-width: 390px;
-    margin: 5px auto -4px;
+  .hero-display,
+  .marketing-hero h1 {
+    font-size: clamp(2.375rem, 10.5vw, 2.625rem);
+  }
+
+  .marketing-hero__copy {
+    margin-top: 24px;
+    font-size: 0.98rem;
   }
 
   .protected-route {

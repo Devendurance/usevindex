@@ -33,23 +33,25 @@ test.describe("Vindex routes", () => {
   test("hero preserves the approved quiet hierarchy", async ({ page }) => {
     await page.goto("/");
     const hero = page.locator(".marketing-hero");
-    await expect(hero).toContainText("DETECT THE THREAT.");
-    await expect(hero).toContainText("EXECUTE THE ESCAPE.");
+    const headline = hero.getByRole("heading", { level: 1 });
+    await expect(headline).toContainText("Detect the threat.");
+    await expect(headline).toContainText("Execute the escape.");
+    await expect(headline).toHaveJSProperty("innerHTML", "Detect the threat.<br>Execute the escape.");
     await expect(hero.getByText("Vindex watches supported DeFi positions, confirms converging danger and routes a verified exit through KeeperHub.")).toBeVisible();
     await expect(hero.getByRole("link", { name: "RUN A DRY RUN" })).toHaveAttribute("href", "/setup");
     await expect(hero.locator(".primary-cta")).toHaveCount(1);
-    await expect(hero.locator(".protected-route")).toHaveCount(1);
+    await expect(hero.locator(".marketing-hero__route")).toHaveCount(0);
+    await expect(hero.locator(".protected-route")).toHaveCount(0);
     await expect(hero.locator(".proof-point")).toHaveCount(3);
     await expect(hero).not.toContainText("SIMULATION ONLY");
     await expect(hero).not.toContainText("Rescue Receipt");
   });
 
-  test("hero follows the approved route-first DOM order", async ({ page }) => {
+  test("hero follows the approved compact DOM order", async ({ page }) => {
     await page.goto("/");
     const order = await page.locator(".marketing-hero__inner").evaluate((hero) =>
       Array.from(hero.children).map((child) => {
         if (child.matches("h1")) return "headline";
-        if (child.matches(".marketing-hero__route")) return "route";
         if (child.matches(".marketing-hero__copy")) return "supporting-copy";
         if (child.matches(".primary-cta")) return "primary-cta";
         if (child.matches(".proof-row")) return "proof-row";
@@ -57,7 +59,55 @@ test.describe("Vindex routes", () => {
       }),
     );
 
-    expect(order).toEqual(["headline", "route", "supporting-copy", "primary-cta", "proof-row"]);
+    expect(order).toEqual(["headline", "supporting-copy", "primary-cta", "proof-row"]);
+  });
+
+  test("desktop and tablet hero headline stays on two visual lines and fits the first viewport", async ({ page }) => {
+    test.skip(test.info().project.name !== "desktop", "desktop/tablet layout acceptance runs once in the desktop project");
+
+    for (const viewport of [
+      { width: 1440, height: 900 },
+      { width: 1280, height: 800 },
+      { width: 1024, height: 800 },
+      { width: 768, height: 900 },
+      { width: 700, height: 800 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto("/");
+
+      const visualLineCount = await page.locator(".marketing-hero h1").evaluate((headline) => {
+        const lineTops = new Set<number>();
+        const walker = document.createTreeWalker(headline, NodeFilter.SHOW_TEXT);
+        let textNode = walker.nextNode();
+
+        while (textNode) {
+          const range = document.createRange();
+          range.selectNodeContents(textNode);
+          for (const rect of range.getClientRects()) {
+            if (rect.width > 0 && rect.height > 0) lineTops.add(Math.round(rect.top));
+          }
+          textNode = walker.nextNode();
+        }
+
+        return lineTops.size;
+      });
+      const proofBottom = await page.locator(".marketing-hero .proof-row").evaluate((proofRow) => proofRow.getBoundingClientRect().bottom);
+
+      expect.soft(visualLineCount, `${viewport.width}px headline line count`).toBe(2);
+      expect.soft(proofBottom, `${viewport.width}px proof row bottom`).toBeLessThanOrEqual(viewport.height);
+      expect.soft(await page.evaluate(() => document.documentElement.scrollWidth), `${viewport.width}px horizontal overflow`).toBeLessThanOrEqual(viewport.width);
+    }
+  });
+
+  test("Vindex brand always returns to the landing page", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: "Vindex home" })).toHaveAttribute("href", "/");
+
+    await page.goto("/monitor");
+    const productBrand = page.getByRole("link", { name: "Vindex home" });
+    await expect(productBrand).toHaveAttribute("href", "/");
+    await productBrand.click();
+    await expect(page).toHaveURL(/\/$/);
   });
 
   test("desktop hero includes a down indicator linked to how it works", async ({ page }) => {
@@ -154,7 +204,9 @@ test.describe("Vindex routes", () => {
     await page.goto("/");
 
     const menuButton = page.getByRole("button", { name: "Open navigation" });
-    await menuButton.click();
+    await menuButton.focus();
+    await menuButton.press("Enter");
+    await expect(page.getByRole("button", { name: "Close navigation" })).toBeVisible();
     const mobileNavigation = page.getByRole("navigation", { name: "Mobile navigation" });
     const firstLink = mobileNavigation.getByRole("link").first();
     await firstLink.focus();
