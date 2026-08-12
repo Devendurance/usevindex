@@ -62,6 +62,36 @@ test.describe("Vindex routes", () => {
     expect(order).toEqual(["headline", "supporting-copy", "primary-cta", "proof-row"]);
   });
 
+  test("hero uses one responsive project-owned decorative corridor image", async ({ page }) => {
+    await page.goto("/");
+    const hero = page.locator(".marketing-hero");
+    const backgroundImage = hero.locator("img.marketing-hero__background");
+
+    await expect(backgroundImage).toHaveCount(1);
+    await expect(backgroundImage).toHaveAttribute("alt", "");
+    await expect(backgroundImage).toHaveAttribute("src", /^(?:\/_next\/image\?url=%2F|\/)(?!\/).*corridor/i);
+    await expect(backgroundImage).toHaveAttribute("sizes", "100vw");
+    await expect(backgroundImage).toHaveAttribute("fetchpriority", "high");
+    await expect(backgroundImage).toHaveAttribute("loading", "eager");
+
+    const presentation = await backgroundImage.evaluate((image) => {
+      const style = getComputedStyle(image);
+      const imageRect = image.getBoundingClientRect();
+      const heroRect = image.closest(".marketing-hero")?.getBoundingClientRect();
+      return {
+        objectFit: style.objectFit,
+        coversHero: heroRect
+          ? imageRect.left <= heroRect.left && imageRect.top <= heroRect.top && imageRect.right >= heroRect.right && imageRect.bottom >= heroRect.bottom
+          : false,
+      };
+    });
+
+    expect(presentation.objectFit).toBe("cover");
+    expect(presentation.coversHero).toBe(true);
+    await expect(hero.locator(".marketing-hero__veil")).toHaveCount(1);
+    await expect(hero.locator(".marketing-hero__inner")).toHaveCSS("color", "rgb(17, 17, 17)");
+  });
+
   test("desktop and tablet hero headline stays on two visual lines and fits the first viewport", async ({ page }) => {
     test.skip(test.info().project.name !== "desktop", "desktop/tablet layout acceptance runs once in the desktop project");
 
@@ -99,6 +129,55 @@ test.describe("Vindex routes", () => {
     }
   });
 
+  test("minimum-width mobile keeps the hero compact and the headline on two lines", async ({ page }) => {
+    test.skip(test.info().project.name !== "desktop", "minimum-width acceptance runs once in the desktop project");
+    await page.setViewportSize({ width: 320, height: 700 });
+    await page.goto("/");
+
+    const metrics = await page.locator(".marketing-hero").evaluate((hero) => {
+      const headline = hero.querySelector("h1");
+      const proofRow = hero.querySelector(".proof-row");
+      if (!headline || !proofRow) return null;
+
+      const lineTops = new Set<number>();
+      const range = document.createRange();
+      for (const node of headline.childNodes) {
+        if (node.nodeType !== Node.TEXT_NODE) continue;
+        range.selectNodeContents(node);
+        for (const rect of range.getClientRects()) {
+          if (rect.width > 0 && rect.height > 0) lineTops.add(Math.round(rect.top));
+        }
+      }
+
+      return {
+        headlineLines: lineTops.size,
+        proofBottom: proofRow.getBoundingClientRect().bottom,
+      };
+    });
+
+    expect(metrics).not.toBeNull();
+    expect(metrics?.headlineLines).toBe(2);
+    expect(metrics?.proofBottom).toBeLessThanOrEqual(700);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  });
+
+  test("narrow tablet proof row uses a readable two-plus-one layout", async ({ page }) => {
+    test.skip(test.info().project.name !== "desktop", "tablet layout acceptance runs once in the desktop project");
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await page.goto("/");
+
+    const layout = await page.locator(".marketing-hero .proof-row").evaluate((proofRow) => {
+      const points = proofRow.querySelectorAll(".proof-point");
+      return {
+        columns: getComputedStyle(proofRow).gridTemplateColumns.split(" ").length,
+        thirdColumn: points[2] ? getComputedStyle(points[2]).gridColumnEnd : "",
+      };
+    });
+
+    expect(layout.columns).toBe(2);
+    expect(layout.thirdColumn).toBe("-1");
+  });
+
   test("Vindex brand always returns to the landing page", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("link", { name: "Vindex home" })).toHaveAttribute("href", "/");
@@ -106,8 +185,10 @@ test.describe("Vindex routes", () => {
     await page.goto("/monitor");
     const productBrand = page.getByRole("link", { name: "Vindex home" });
     await expect(productBrand).toHaveAttribute("href", "/");
-    await productBrand.click();
-    await expect(page).toHaveURL(/\/$/);
+    await Promise.all([
+      page.waitForURL(/\/$/, { timeout: 15_000 }),
+      productBrand.click(),
+    ]);
   });
 
   test("desktop hero includes a down indicator linked to how it works", async ({ page }) => {
@@ -173,6 +254,69 @@ test.describe("Vindex routes", () => {
     await page.goto("/demo");
 
     await expect(page.locator(".site-nav__demo")).toHaveAttribute("aria-current", "page");
+  });
+
+  test("site navigation stays fixed without obscuring landing content", async ({ page }) => {
+    await page.goto("/");
+
+    const nav = page.locator(".site-nav");
+    await expect(nav).toBeVisible();
+
+    const initialLayout = await page.evaluate(() => {
+      const navigation = document.querySelector<HTMLElement>(".site-nav");
+      const heroContent = document.querySelector<HTMLElement>(".marketing-hero__inner");
+      if (!navigation || !heroContent) return null;
+
+      const navRect = navigation.getBoundingClientRect();
+      const heroRect = heroContent.getBoundingClientRect();
+      return {
+        position: getComputedStyle(navigation).position,
+        navTop: navRect.top,
+        navBottom: navRect.bottom,
+        heroTop: heroRect.top,
+      };
+    });
+
+    expect(initialLayout).not.toBeNull();
+    expect(initialLayout?.position).toBe("fixed");
+    expect(initialLayout?.navTop).toBe(0);
+    expect(initialLayout?.heroTop).toBeGreaterThanOrEqual(initialLayout?.navBottom ?? 0);
+
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expect.poll(() => nav.evaluate((element) => Math.round(element.getBoundingClientRect().top))).toBe(0);
+  });
+
+  test("landing footer contains navigation, project links and 2026 copyright", async ({ page }) => {
+    await page.goto("/");
+
+    const footer = page.locator("footer.landing-footer");
+    await expect(footer).toBeVisible();
+    await expect(footer.getByRole("navigation", { name: "Footer navigation" })).toBeVisible();
+    await expect(footer.getByRole("link", { name: "GitHub", exact: true })).toHaveAttribute("href", "https://github.com/Devendurance/usevindex");
+    await expect(footer.getByRole("link", { name: "X", exact: true })).toHaveAttribute("href", "https://x.com/devendyyy");
+    await expect(footer).toContainText("VINDEX");
+    await expect(footer).toContainText(/© 2026 Vindex\. All rights reserved\./);
+  });
+
+  test("the expanded landing footer does not appear on product routes", async ({ page }) => {
+    await page.goto("/monitor");
+
+    await expect(page.locator("footer.landing-footer")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "GitHub", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "X", exact: true })).toHaveCount(0);
+  });
+
+  test("lower landing content reveals after entering the viewport", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page.locator("html")).toHaveAttribute("data-lenis-enabled", "true");
+    const reveal = page.locator('[data-scroll-reveal="true"]').first();
+    await expect(reveal).toHaveAttribute("data-reveal-state", "hidden");
+
+    await reveal.scrollIntoViewIfNeeded();
+
+    await expect(reveal).toHaveAttribute("data-reveal-state", "visible");
+    await expect(reveal).toHaveCSS("opacity", "1");
   });
 
   test("setup validates locally and never submits unavailable actions", async ({ page }) => {
@@ -272,6 +416,9 @@ test.describe("Vindex routes", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
     await expect(page.locator(".protected-route").first()).toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("data-lenis-enabled", "false");
+    await expect(page.locator('[data-scroll-reveal="true"]')).not.toHaveCount(0);
+    await expect(page.locator('[data-scroll-reveal="true"][data-reveal-state="hidden"]')).toHaveCount(0);
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior)).toBe("auto");
   });
 

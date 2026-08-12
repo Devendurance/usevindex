@@ -118,7 +118,7 @@ This version keeps the supplied visual direction as well as its formal design me
 
 ### Visual direction retained in full
 
-- cream base with a soft, heavily blurred blue/lavender/gold mesh;
+- a prominent cool-gray corridor photograph behind the marketing hero;
 - visible but restrained grain;
 - quiet, confident fintech-cool atmosphere;
 - tight geometric grotesk display type;
@@ -264,7 +264,7 @@ Use **Inter** for:
 - Maximum content width: `1140px`.
 - Centered container with generous side margins.
 - Cream base visible around the content.
-- Use the blurred mesh as a low-contrast field, not as a panel background.
+- Use the blurred mesh as a low-contrast field below the hero, not as a panel background.
 - Base spacing unit: `4px`.
 - Hero top padding: approximately `64px–76px` on desktop.
 
@@ -273,7 +273,9 @@ Use **Inter** for:
 - Logo mark on the left;
 - centred or balanced text links;
 - secondary `Sign in` or `View demo` control on the right;
-- transparent background directly over the cream/mesh field;
+- one shared fixed navigation shell across marketing and product routes;
+- keep the nav above page content with a stable height, opaque cream backing and subtle backdrop blur so it never obscures readable content;
+- transparent background over the cream page field; the hero photograph begins below the navigation;
 - compact `14px–15px` Inter, sentence case;
 - hover changes opacity to `0.6` without underline animation.
 - every clickable Vindex logo links to the landing page at `/`, including from product routes.
@@ -291,6 +293,8 @@ Use a centred single-column hero:
 5. scroll indicator.
 
 Do not place a decorative line, underline or route SVG in the hero. The reduced composition is intentional: the headline must remain exactly two visual lines on tablet and desktop, and the proof row must fit within the first viewport at the supported desktop and tablet sizes.
+
+The hero background is the project-owned exit-corridor photograph at `/public/images/vindex-exit-corridor.png`. Render it as one decorative, responsive `next/image` layer with centred `cover` cropping so the runner and repeated EXIT signs remain visible. Keep the image prominent, but protect the existing black typography with one continuous, borderless cream-white veil that is strongest through the content area and lighter toward the sides. The veil must never read as a card: no border, radius, shadow or framed content surface.
 
 Recommended hero headline:
 
@@ -486,10 +490,22 @@ SAFE WALLET CHECK    / PENDING
 - Use no generic star/asterisk as the primary product mark.
 - Use arrows only when they describe an actual direction in the route.
 
+### Footer
+
+- Render the expanded footer only on the landing page; product routes use their focused product shell without the landing footer.
+- Keep footer navigation links local to the landing experience and preserve the exact external project links:
+  - GitHub: `https://github.com/Devendurance/usevindex`
+  - X: `https://x.com/devendyyy`
+- The footer rail must include the exact copyright text `© 2026 Vindex. All rights reserved.`.
+
 ## Interaction & Motion
 
 - Mesh remains static or changes extremely slowly; no moving blobs.
 - A semantic route diagram may draw once when its explanatory section enters view, then remain still.
+- Mount one shared Lenis runtime from the root shell so all routes use the same smooth-scroll behavior; do not create route-specific Lenis instances.
+- Disable Lenis completely when `prefers-reduced-motion: reduce` matches, and expose that disabled state to the document root for verification.
+- Mark lower landing sections and the landing footer for one-time reveal with a shared `IntersectionObserver`; when they enter the viewport, transition opacity from `0` to `1` and translate them to their resting position, then unobserve them.
+- The hero and fixed navigation are immediately visible and must never wait for the reveal observer.
 - Primary CTA glitch offset increases by approximately `1px` on hover.
 - Threat-state changes should use a short opacity or border transition, not a dramatic alarm animation.
 - Rescue Receipt rows may reveal in execution order, but the full status must remain accessible.
@@ -498,11 +514,12 @@ SAFE WALLET CHECK    / PENDING
 
 ## Responsive Behaviour
 
-### Mobile: `375px–599px`
+### Mobile: `320px–599px`
 
 - Navigation collapses to a hamburger.
 - Logo and primary CTA remain visible.
 - The hero display remains between `38px–42px`.
+- At the `320px–340px` minimum-width edge, the hero may reduce to `32px` to preserve the intentional two-line headline and keep the proof sequence inside a `700px` viewport.
 - Body Large reduces to `16px`.
 - Feature row stacks vertically.
 - Icon tiles remain left-aligned beside their text.
