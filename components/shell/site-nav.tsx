@@ -60,11 +60,14 @@ export function SiteNav({ variant = "marketing" }: { variant?: "marketing" | "pr
         </nav>
 
         <div className="site-nav__actions">
-          {variant === "marketing" ? (
-            <Link className="secondary-button site-nav__demo" href="/demo">View demo</Link>
-          ) : (
-            <Link className="secondary-button site-nav__demo" href="/demo">View demo</Link>
-          )}
+          <Link
+            className="secondary-button secondary-button--layered site-nav__demo"
+            href="/demo"
+            aria-current={isActive("/demo") ? "page" : undefined}
+            onClick={closeMenu}
+          >
+            View demo
+          </Link>
           <button
             ref={menuButtonRef}
             className="icon-button site-nav__menu-button"

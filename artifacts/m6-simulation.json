@@ -1,0 +1,70 @@
+{
+  "milestone": "M6",
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "protocol": "Aave V3",
+  "positionId": "base-sepolia:aave-v3:usdc:0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+  "decision": {
+    "id": "ad531e71-668e-4886-9af1-be7fc65bb84a",
+    "policyId": "334d5fef-142d-4fc4-b193-4dcf4628bd6f",
+    "policyMode": "DRILL_HIGH_SENSITIVITY",
+    "policyVersion": 20,
+    "confirmedAt": "2026-08-12T20:27:16.199Z",
+    "expiresAt": "2026-08-12T21:27:16.199Z",
+    "readyForSimulation": true,
+    "reReadBlock": "45399070",
+    "matchedFamilies": [
+      "ORACLE_PRICE_STATE",
+      "AAVE_RESERVE_STATE",
+      "POSITION_STATE"
+    ]
+  },
+  "execution": {
+    "id": "aa08f562-5213-4c4d-a94c-7f918cbc2c91",
+    "state": "SIMULATION_PASSED",
+    "readyForExecution": true,
+    "target": "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27",
+    "asset": "0xba50Cd2A20f6DA35D788639E581bca8d0B5d4D5f",
+    "amountMode": "FULL_POSITION",
+    "amountBaseUnits": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+    "safeWallet": "0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9",
+    "parametersHash": "8a62309d66ed073a1a426ddbba6e11a3d75f0331dc841f47f359bd7c28184707",
+    "blockNumber": "45399075",
+    "blockTimestamp": "2026-08-12T20:27:18.000Z"
+  },
+  "simulation": {
+    "id": "2973a1f6-003e-4ff4-8d93-16ca777622a3",
+    "success": true,
+    "wouldRevert": false,
+    "gasEstimate": "183705",
+    "expectedWithdrawAmount": "5000123",
+    "preSimulationPositionAmount": "5000123",
+    "blockNumber": "45399075",
+    "createdAt": "2026-08-12T20:27:22.619Z"
+  },
+  "withdrawalParameters": {
+    "function": "withdraw",
+    "asset": "0xba50Cd2A20f6DA35D788639E581bca8d0B5d4D5f",
+    "amount": "type(uint256).max (full position)",
+    "to": "0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9"
+  },
+  "noBroadcastProof": {
+    "txHash": null,
+    "keeperhubExecutionId": null,
+    "submittedAt": null
+  },
+  "auditEvents": [
+    "PRE_EXECUTION_VALIDATION_STARTED",
+    "EXECUTION_PREPARED",
+    "SIMULATION_PASSED",
+    "SIMULATION_STARTED",
+    "PRE_EXECUTION_VALIDATION_STARTED",
+    "CONFIRMATION_PASSED",
+    "CONFIRMATION_STARTED",
+    "CONSENSUS_REACHED",
+    "POLICY_ARMED",
+    "POLICY_DISARMED"
+  ],
+  "secretScanPassed": true,
+  "verifiedAt": "2026-08-12T20:27:32.325Z"
+}

@@ -1,0 +1,14 @@
+{
+  "intentId": "m2-approve",
+  "chainId": 84532,
+  "from": "0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+  "to": "0xba50Cd2A20f6DA35D788639E581bca8d0B5d4D5f",
+  "function": "approve",
+  "functionArgs": "[\"0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27\",\"5000000\"]",
+  "success": true,
+  "status": "simulated",
+  "wouldRevert": false,
+  "gasEstimate": "29484",
+  "simulatedReturnValue": true,
+  "observedAt": "2026-08-12T10:33:08.208Z"
+}

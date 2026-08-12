@@ -1,0 +1,192 @@
+{
+  "milestone": "M4",
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "protocol": "Aave V3",
+  "positionId": "base-sepolia:aave-v3:usdc:0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+  "batch": {
+    "outcome": "COMPLETE",
+    "blockNumber": "45399019",
+    "blockTimestamp": "2026-08-12T20:25:26.000Z",
+    "observedAt": "2026-08-12T20:25:26.352Z",
+    "rpcSource": "Base Sepolia",
+    "familiesCollected": [
+      "ORACLE_PRICE_STATE",
+      "AAVE_RESERVE_STATE",
+      "POSITION_STATE"
+    ],
+    "persistedCount": 6,
+    "duplicateCount": 0,
+    "diagnostics": []
+  },
+  "observations": [
+    {
+      "id": "27254403-a18e-4f8b-a7f8-49362d0fc873",
+      "sourceFamily": "ORACLE_PRICE_STATE",
+      "metric": "AAVE_USDC_ORACLE_PRICE",
+      "rawValue": "99984483",
+      "normalizedValue": "99984483",
+      "contractAddress": "0x943b0dE18d4abf4eF02A85912F8fc07684C141dF",
+      "blockNumber": "45399019",
+      "blockTimestamp": "2026-08-12T20:25:26.000Z",
+      "observedAt": "2026-08-12T20:25:26.352Z",
+      "metadata": {
+        "decimals": 8,
+        "formatted": "0.99984483",
+        "asset": "0xba50Cd2A20f6DA35D788639E581bca8d0B5d4D5f",
+        "source": "Aave Oracle getAssetPrice(USDC)",
+        "label": "Aave Oracle Price State/Change",
+        "previousValue": "99984483",
+        "previousBlockNumber": "45398919",
+        "delta": "0",
+        "elapsedSeconds": 200
+      }
+    },
+    {
+      "id": "fc08c3cc-362f-4255-901a-38d3045ef269",
+      "sourceFamily": "AAVE_RESERVE_STATE",
+      "metric": "AAVE_RESERVE_TOTAL_ATOKEN",
+      "rawValue": "9054971616162",
+      "normalizedValue": "9054971616162",
+      "contractAddress": "0x10F1A9D11CDf50041f3f8cB7191CBE2f31750ACC",
+      "blockNumber": "45399019",
+      "blockTimestamp": "2026-08-12T20:25:26.000Z",
+      "observedAt": "2026-08-12T20:25:26.352Z",
+      "metadata": {
+        "decimals": 6,
+        "formatted": "9054971.616162",
+        "reserve": "0xba50Cd2A20f6DA35D788639E581bca8d0B5d4D5f",
+        "booleans": {
+          "isActive": true,
+          "isFrozen": false,
+          "borrowingEnabled": true,
+          "usageAsCollateralEnabled": true,
+          "stableBorrowRateEnabled": false,
+          "isPausedUnavailable": "getPaused() reverts on the deployed Base Sepolia Pool"
+        },
+        "label": "aToken total supply (base units, 6 decimals)",
+        "previousValue": "9054970402851",
+        "previousBlockNumber": "45398919",
+        "delta": "1213311",
+        "elapsedSeconds": 200
+      }
+    },
+    {
+      "id": "4bcbf10b-170d-4936-bb80-7483f4e3e4ea",
+      "sourceFamily": "AAVE_RESERVE_STATE",
+      "metric": "AAVE_RESERVE_TOTAL_VARIABLE_DEBT",
+      "rawValue": "6154851440168",
+      "normalizedValue": "6154851440168",
+      "contractAddress": "0xFB3e85601b7fEb3691bbb8779Ef0E1069E347204",
+      "blockNumber": "45399019",
+      "blockTimestamp": "2026-08-12T20:25:26.000Z",
+      "observedAt": "2026-08-12T20:25:26.352Z",
+      "metadata": {
+        "decimals": 6,
+        "formatted": "6154851.440168",
+        "reserve": "0xba50Cd2A20f6DA35D788639E581bca8d0B5d4D5f",
+        "booleans": {
+          "isActive": true,
+          "isFrozen": false,
+          "borrowingEnabled": true,
+          "usageAsCollateralEnabled": true,
+          "stableBorrowRateEnabled": false,
+          "isPausedUnavailable": "getPaused() reverts on the deployed Base Sepolia Pool"
+        },
+        "label": "variable debt token total supply (base units, 6 decimals)",
+        "previousValue": "6154850086894",
+        "previousBlockNumber": "45398919",
+        "delta": "1353274",
+        "elapsedSeconds": 200
+      }
+    },
+    {
+      "id": "f7f8e9b0-5dfa-40a9-b3df-18e2bad4e787",
+      "sourceFamily": "AAVE_RESERVE_STATE",
+      "metric": "AAVE_RESERVE_LIQUIDITY_RATE",
+      "rawValue": "22008521941932942105304632",
+      "normalizedValue": "22008521941932942105304632",
+      "contractAddress": "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27",
+      "blockNumber": "45399019",
+      "blockTimestamp": "2026-08-12T20:25:26.000Z",
+      "observedAt": "2026-08-12T20:25:26.352Z",
+      "metadata": {
+        "decimals": 27,
+        "formatted": "0.022008521941932942105304632",
+        "reserve": "0xba50Cd2A20f6DA35D788639E581bca8d0B5d4D5f",
+        "booleans": {
+          "isActive": true,
+          "isFrozen": false,
+          "borrowingEnabled": true,
+          "usageAsCollateralEnabled": true,
+          "stableBorrowRateEnabled": false,
+          "isPausedUnavailable": "getPaused() reverts on the deployed Base Sepolia Pool"
+        },
+        "label": "per-second liquidity rate scaled by 1e27",
+        "previousValue": "22008521941932942105304632",
+        "previousBlockNumber": "45398919",
+        "delta": "0",
+        "elapsedSeconds": 200
+      }
+    },
+    {
+      "id": "9633797c-72ba-45b3-8ae7-56eaae769f11",
+      "sourceFamily": "AAVE_RESERVE_STATE",
+      "metric": "AAVE_RESERVE_LIQUIDITY_INDEX",
+      "rawValue": "1242206854269812672107555338",
+      "normalizedValue": "1242206854269812672107555338",
+      "contractAddress": "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27",
+      "blockNumber": "45399019",
+      "blockTimestamp": "2026-08-12T20:25:26.000Z",
+      "observedAt": "2026-08-12T20:25:26.352Z",
+      "metadata": {
+        "decimals": 27,
+        "formatted": "1.242206854269812672107555338",
+        "reserve": "0xba50Cd2A20f6DA35D788639E581bca8d0B5d4D5f",
+        "booleans": {
+          "isActive": true,
+          "isFrozen": false,
+          "borrowingEnabled": true,
+          "usageAsCollateralEnabled": true,
+          "stableBorrowRateEnabled": false,
+          "isPausedUnavailable": "getPaused() reverts on the deployed Base Sepolia Pool"
+        },
+        "label": "liquidity index scaled by 1e27",
+        "previousValue": "1242206854269812672107555338",
+        "previousBlockNumber": "45398919",
+        "delta": "0",
+        "elapsedSeconds": 200
+      }
+    },
+    {
+      "id": "bebcc2b7-2c32-4781-a4e9-3b6ac14e1615",
+      "sourceFamily": "POSITION_STATE",
+      "metric": "POSITION_AUSDC_BALANCE",
+      "rawValue": "5000123",
+      "normalizedValue": "5000123",
+      "contractAddress": "0x10F1A9D11CDf50041f3f8cB7191CBE2f31750ACC",
+      "blockNumber": "45399019",
+      "blockTimestamp": "2026-08-12T20:25:26.000Z",
+      "observedAt": "2026-08-12T20:25:26.352Z",
+      "metadata": {
+        "decimals": 6,
+        "formatted": "5.000123",
+        "owner": "0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+        "aToken": "0x10F1A9D11CDf50041f3f8cB7191CBE2f31750ACC",
+        "asset": "0xba50Cd2A20f6DA35D788639E581bca8d0B5d4D5f",
+        "label": "execution wallet aUSDC balance (base units, 6 decimals)",
+        "previousValue": "5000122",
+        "previousBlockNumber": "45398919",
+        "delta": "1",
+        "elapsedSeconds": 200
+      }
+    }
+  ],
+  "persistenceProof": {
+    "dedupVerified": true,
+    "historyCount": 20,
+    "latestFreshness": "LIVE"
+  },
+  "secretScanPassed": true,
+  "verifiedAt": "2026-08-12T20:25:36.281Z"
+}

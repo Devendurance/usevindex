@@ -1,0 +1,208 @@
+{
+  "milestone": "M5",
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "protocol": "Aave V3",
+  "positionId": "base-sepolia:aave-v3:usdc:0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+  "policy": {
+    "id": "99584f49-13ea-4e22-b0fd-45aca7039f02",
+    "mode": "DRILL_HIGH_SENSITIVITY",
+    "version": 18,
+    "requiredSignals": 2,
+    "correlationWindowSec": 600,
+    "thresholds": {
+      "oracleMaxUsd8": 101000000,
+      "reserveVariableDebtMin": 0,
+      "positionBalanceMin": 0,
+      "drillLabel": "PROTECTION DRILL — HIGH-SENSITIVITY POLICY",
+      "rules": [
+        {
+          "family": "ORACLE_PRICE_STATE",
+          "condition": "AAVE_USDC_ORACLE_PRICE <= 1.01 USD (raw <= 101_000_000, 8 decimals)"
+        },
+        {
+          "family": "AAVE_RESERVE_STATE",
+          "condition": "AAVE_RESERVE_TOTAL_VARIABLE_DEBT > 0"
+        },
+        {
+          "family": "POSITION_STATE",
+          "condition": "POSITION_AUSDC_BALANCE > 0"
+        }
+      ]
+    },
+    "safeWalletSnapshot": "0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9",
+    "armedAt": "2026-08-12T20:26:05.985Z"
+  },
+  "standardEvaluation": {
+    "state": "WATCHING",
+    "matchedCount": 0
+  },
+  "drill": {
+    "state": "CONFIRMING",
+    "matchedCount": 3,
+    "requiredSignals": 2,
+    "matchedFamilies": [
+      {
+        "family": "ORACLE_PRICE_STATE",
+        "reason": "DRILL condition: Aave USDC oracle price 99984483 (8 decimals) <= 1.01 USD.",
+        "observationIds": [
+          "42598fe1-815c-4e92-a057-ff5cb53fc111"
+        ],
+        "values": {
+          "raw": "99984483",
+          "block": "45399039"
+        }
+      },
+      {
+        "family": "AAVE_RESERVE_STATE",
+        "reason": "DRILL condition: Aave USDC reserve variable debt 6154851736196 > 0.",
+        "observationIds": [
+          "3a99abbf-ea8f-451f-96cd-94568b815cc1"
+        ],
+        "values": {
+          "raw": "6154851736196",
+          "block": "45399039"
+        }
+      },
+      {
+        "family": "POSITION_STATE",
+        "reason": "DRILL condition: protected aUSDC balance 5000123 > 0.",
+        "observationIds": [
+          "4f3a4b75-920b-4b6b-88b0-a902a6c2e504"
+        ],
+        "values": {
+          "raw": "5000123",
+          "block": "45399039"
+        }
+      }
+    ],
+    "decisionId": "a4174a38-a3d3-4611-94a8-012209eab8bf",
+    "windowStartedAt": "2026-08-12T20:26:16.093Z",
+    "confirmedAt": "2026-08-12T20:26:24.876Z",
+    "expiresAt": "2026-08-12T21:26:24.876Z",
+    "readyForSimulation": true,
+    "drillLabel": "PROTECTION DRILL — HIGH-SENSITIVITY POLICY",
+    "drillExplanation": "Real measurements with intentionally sensitive thresholds. This is a protection drill, not evidence of an Aave exploit.",
+    "reRead": {
+      "blockNumber": "45399044",
+      "blockTimestamp": "2026-08-12T20:26:16.000Z",
+      "outcome": "passed",
+      "reason": null,
+      "matchedFamilies": [
+        "ORACLE_PRICE_STATE",
+        "AAVE_RESERVE_STATE",
+        "POSITION_STATE"
+      ]
+    }
+  },
+  "observations": [
+    {
+      "id": "42598fe1-815c-4e92-a057-ff5cb53fc111",
+      "sourceFamily": "ORACLE_PRICE_STATE",
+      "metric": "AAVE_USDC_ORACLE_PRICE",
+      "rawValue": "99984483",
+      "blockNumber": "45399039",
+      "blockTimestamp": "2026-08-12T20:26:06.000Z",
+      "observedAt": "2026-08-12T20:26:06.900Z"
+    },
+    {
+      "id": "0fbb8a7c-ca3f-442d-a1ab-0e8d5031a6c4",
+      "sourceFamily": "AAVE_RESERVE_STATE",
+      "metric": "AAVE_RESERVE_TOTAL_ATOKEN",
+      "rawValue": "9054971881574",
+      "blockNumber": "45399039",
+      "blockTimestamp": "2026-08-12T20:26:06.000Z",
+      "observedAt": "2026-08-12T20:26:06.900Z"
+    },
+    {
+      "id": "3a99abbf-ea8f-451f-96cd-94568b815cc1",
+      "sourceFamily": "AAVE_RESERVE_STATE",
+      "metric": "AAVE_RESERVE_TOTAL_VARIABLE_DEBT",
+      "rawValue": "6154851736196",
+      "blockNumber": "45399039",
+      "blockTimestamp": "2026-08-12T20:26:06.000Z",
+      "observedAt": "2026-08-12T20:26:06.900Z"
+    },
+    {
+      "id": "d06a8049-3d1b-462c-a26c-d3edc450c038",
+      "sourceFamily": "AAVE_RESERVE_STATE",
+      "metric": "AAVE_RESERVE_LIQUIDITY_RATE",
+      "rawValue": "22008521941932942105304632",
+      "blockNumber": "45399039",
+      "blockTimestamp": "2026-08-12T20:26:06.000Z",
+      "observedAt": "2026-08-12T20:26:06.900Z"
+    },
+    {
+      "id": "da300073-351c-4fb5-8466-5deb6a19c2d6",
+      "sourceFamily": "AAVE_RESERVE_STATE",
+      "metric": "AAVE_RESERVE_LIQUIDITY_INDEX",
+      "rawValue": "1242206854269812672107555338",
+      "blockNumber": "45399039",
+      "blockTimestamp": "2026-08-12T20:26:06.000Z",
+      "observedAt": "2026-08-12T20:26:06.900Z"
+    },
+    {
+      "id": "4f3a4b75-920b-4b6b-88b0-a902a6c2e504",
+      "sourceFamily": "POSITION_STATE",
+      "metric": "POSITION_AUSDC_BALANCE",
+      "rawValue": "5000123",
+      "blockNumber": "45399039",
+      "blockTimestamp": "2026-08-12T20:26:06.000Z",
+      "observedAt": "2026-08-12T20:26:06.900Z"
+    }
+  ],
+  "auditEvents": [
+    "CONFIRMATION_PASSED",
+    "CONFIRMATION_STARTED",
+    "CONSENSUS_REACHED",
+    "POLICY_ARMED",
+    "POLICY_DISARMED",
+    "POLICY_ARMED",
+    "POLICY_DISARMED",
+    "PRE_EXECUTION_VALIDATION_FAILED",
+    "PRE_EXECUTION_VALIDATION_STARTED",
+    "CONFIRMATION_PASSED",
+    "CONFIRMATION_STARTED",
+    "CONSENSUS_REACHED",
+    "POLICY_ARMED",
+    "POLICY_DISARMED",
+    "POLICY_ARMED",
+    "POLICY_DISARMED",
+    "CONFIRMATION_PASSED",
+    "CONFIRMATION_STARTED",
+    "CONSENSUS_REACHED",
+    "POLICY_ARMED",
+    "POLICY_DISARMED",
+    "POLICY_ARMED",
+    "POLICY_DISARMED",
+    "PRE_EXECUTION_VALIDATION_STARTED",
+    "EXECUTION_PREPARED",
+    "SIMULATION_PASSED",
+    "SIMULATION_STARTED",
+    "PRE_EXECUTION_VALIDATION_STARTED",
+    "CONFIRMATION_PASSED",
+    "CONFIRMATION_STARTED",
+    "CONSENSUS_REACHED",
+    "POLICY_ARMED",
+    "POLICY_DISARMED",
+    "POLICY_ARMED",
+    "POLICY_DISARMED",
+    "CONFIRMATION_PASSED",
+    "CONFIRMATION_STARTED",
+    "CONSENSUS_REACHED",
+    "POLICY_ARMED",
+    "POLICY_DISARMED",
+    "POLICY_ARMED",
+    "POLICY_DISARMED",
+    "PRE_EXECUTION_VALIDATION_STARTED",
+    "EXECUTION_PREPARED",
+    "SIMULATION_PASSED",
+    "SIMULATION_STARTED",
+    "PRE_EXECUTION_VALIDATION_STARTED",
+    "CONFIRMATION_PASSED",
+    "CONFIRMATION_STARTED",
+    "CONSENSUS_REACHED"
+  ],
+  "secretScanPassed": true,
+  "verifiedAt": "2026-08-12T20:26:26.925Z"
+}
