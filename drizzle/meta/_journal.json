@@ -64,6 +64,13 @@
       "when": 1786624801828,
       "tag": "0008_freezing_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786635661489,
+      "tag": "0009_outstanding_mandrill",
+      "breakpoints": true
     }
   ]
 }

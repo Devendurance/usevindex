@@ -289,3 +289,70 @@ export const demoRuns = pgTable(
 );
 
 export type DemoRunRow = typeof demoRuns.$inferSelect;
+
+// P1: Telegram alerting. Subscriptions bind to the protected position
+// (positionId) — Vindex has no user/auth model. Only token hashes are stored;
+// the bot secret itself never touches the database.
+export const telegramSubscriptions = pgTable(
+  "telegram_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    positionId: varchar("position_id", { length: 128 }).notNull(),
+    chatId: varchar("chat_id", { length: 64 }).notNull(),
+    telegramUsername: varchar("telegram_username", { length: 255 }),
+    riskAlertsEnabled: boolean("risk_alerts_enabled").notNull().default(true),
+    withdrawalAlertsEnabled: boolean("withdrawal_alerts_enabled").notNull().default(true),
+    connectedAt: timestamp("connected_at", { withTimezone: true }).notNull().defaultNow(),
+    disconnectedAt: timestamp("disconnected_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("telegram_subscriptions_position_chat_uniq").on(table.positionId, table.chatId),
+    // One active connection per position.
+    uniqueIndex("telegram_subscriptions_active_uniq")
+      .on(table.positionId)
+      .where(sql`${table.disconnectedAt} is null`),
+  ],
+);
+
+export const telegramConnectTokens = pgTable(
+  "telegram_connect_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    positionId: varchar("position_id", { length: 128 }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("telegram_connect_tokens_hash_uniq").on(table.tokenHash)],
+);
+
+export const notificationDeliveries = pgTable(
+  "notification_deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    subscriptionId: uuid("subscription_id").notNull(),
+    eventType: varchar("event_type", { length: 32 }).notNull(),
+    eventKey: varchar("event_key", { length: 128 }).notNull(),
+    status: varchar("status", { length: 16 }).notNull(),
+    telegramMessageId: varchar("telegram_message_id", { length: 64 }),
+    errorCode: varchar("error_code", { length: 64 }),
+    attemptedAt: timestamp("attempted_at", { withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // One delivery per (subscription, event type, event key) — alerts cannot duplicate.
+    uniqueIndex("notification_deliveries_dedup_uniq").on(
+      table.subscriptionId,
+      table.eventType,
+      table.eventKey,
+    ),
+  ],
+);
+
+export type TelegramSubscriptionRow = typeof telegramSubscriptions.$inferSelect;
+export type TelegramConnectTokenRow = typeof telegramConnectTokens.$inferSelect;
+export type NotificationDeliveryRow = typeof notificationDeliveries.$inferSelect;
