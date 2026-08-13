@@ -93,7 +93,6 @@ export const buildRiskAlertMessage = (params: {
 };
 
 export const buildWithdrawalAlertMessage = (params: {
-  position: ProtectedPositionRow;
   receipt: WithdrawalReceiptFacts;
   execution: ExecutionRow;
   policyMode: string;
@@ -153,6 +152,19 @@ const toggleEnabled = (
   return true; // TEST alerts always send when connected
 };
 
+const failedOutcome = (
+  eventType: NotificationEventType,
+  eventKey: string,
+  errorCode: string,
+): NotificationOutcome => ({
+  delivered: false,
+  deduplicated: false,
+  failed: true,
+  errorCode,
+  eventType,
+  eventKey,
+});
+
 export const deliverTelegramAlert = async (
   db: VindexDb,
   positionId: string,
@@ -162,19 +174,19 @@ export const deliverTelegramAlert = async (
   options: { now?: () => Date } = {},
 ): Promise<NotificationOutcome> => {
   const now = options.now ?? (() => new Date());
-  const failed = (errorCode: string): NotificationOutcome => ({
-    delivered: false,
-    deduplicated: false,
-    failed: true,
-    errorCode,
-    eventType,
-    eventKey,
-  });
+  // The subscription lookup is hoisted above the try so a throwing transport
+  // can still be recorded against the subscription in the catch path. A
+  // lookup failure itself has no subscription to record against.
+  let subscription: Awaited<ReturnType<typeof getActiveSubscription>>;
   try {
-    const subscription = await getActiveSubscription(db, positionId);
-    if (subscription === null) {
-      return { delivered: false, deduplicated: false, failed: false, errorCode: null, eventType, eventKey };
-    }
+    subscription = await getActiveSubscription(db, positionId);
+  } catch {
+    return failedOutcome(eventType, eventKey, "TELEGRAM_ALERT_FAILED");
+  }
+  if (subscription === null) {
+    return { delivered: false, deduplicated: false, failed: false, errorCode: null, eventType, eventKey };
+  }
+  try {
     if (!toggleEnabled(eventType, subscription)) {
       return { delivered: false, deduplicated: false, failed: false, errorCode: null, eventType, eventKey };
     }
@@ -199,7 +211,7 @@ export const deliverTelegramAlert = async (
     const telegram = getTelegramEnv();
     if (telegram === null) {
       await recordDelivery(db, subscription.id, eventType, eventKey, "FAILED", null, "SERVER_NOT_CONFIGURED", now());
-      return failed("SERVER_NOT_CONFIGURED");
+      return failedOutcome(eventType, eventKey, "SERVER_NOT_CONFIGURED");
     }
     const attemptedAt = now();
     const result = await sendTelegramMessage({
@@ -236,7 +248,19 @@ export const deliverTelegramAlert = async (
       eventKey,
     };
   } catch {
-    return failed("TELEGRAM_ALERT_FAILED");
+    // A throwing transport must still leave a FAILED delivery row and a
+    // TELEGRAM_ALERT_FAILED audit so the failure is observable.
+    try {
+      await recordDelivery(db, subscription.id, eventType, eventKey, "FAILED", null, "TELEGRAM_ALERT_FAILED", now());
+      await db.insert(auditEvents).values({
+        positionId,
+        eventType: "TELEGRAM_ALERT_FAILED",
+        detailsJson: JSON.stringify({ eventType, eventKey, errorCode: "TELEGRAM_ALERT_FAILED" }),
+      });
+    } catch {
+      // Observability is best-effort: a failing DB must never throw either.
+    }
+    return failedOutcome(eventType, eventKey, "TELEGRAM_ALERT_FAILED");
   }
 };
 
@@ -275,18 +299,24 @@ export const notifyRiskAlert = async (params: {
 }): Promise<NotificationOutcome> => {
   const { db, positionId } = params;
   const eventKey = `decision:${params.decision.id}`;
-  const positions = await db
-    .select()
-    .from(protectedPositions)
-    .where(eq(protectedPositions.id, positionId))
-    .limit(1);
-  const position = positions[0];
-  if (position === undefined) {
-    return { delivered: false, deduplicated: false, failed: false, errorCode: null, eventType: "RISK_ALERT", eventKey };
+  try {
+    const positions = await db
+      .select()
+      .from(protectedPositions)
+      .where(eq(protectedPositions.id, positionId))
+      .limit(1);
+    const position = positions[0];
+    if (position === undefined) {
+      return { delivered: false, deduplicated: false, failed: false, errorCode: null, eventType: "RISK_ALERT", eventKey };
+    }
+    return deliverTelegramAlert(db, positionId, "RISK_ALERT", eventKey, () =>
+      buildRiskAlertMessage({ position, policy: params.policy, matchedFamilies: params.matchedFamilies }),
+    );
+  } catch {
+    // Pre-flight lookups are observability too: a DB error here must never
+    // propagate into the protection state machine.
+    return failedOutcome("RISK_ALERT", eventKey, "TELEGRAM_ALERT_FAILED");
   }
-  return deliverTelegramAlert(db, positionId, "RISK_ALERT", eventKey, () =>
-    buildRiskAlertMessage({ position, policy: params.policy, matchedFamilies: params.matchedFamilies }),
-  );
 };
 
 export const notifyWithdrawalComplete = async (params: {
@@ -302,18 +332,10 @@ export const notifyWithdrawalComplete = async (params: {
   if (params.receipt.status !== "PROTECTED") {
     return { delivered: false, deduplicated: false, failed: false, errorCode: null, eventType: "WITHDRAWAL_COMPLETE", eventKey };
   }
-  const positions = await db
-    .select()
-    .from(protectedPositions)
-    .where(eq(protectedPositions.id, positionId))
-    .limit(1);
-  const position = positions[0];
-  if (position === undefined) {
-    return { delivered: false, deduplicated: false, failed: false, errorCode: null, eventType: "WITHDRAWAL_COMPLETE", eventKey };
-  }
+  // No position lookup needed: the message derives everything from the
+  // receipt + execution facts.
   return deliverTelegramAlert(db, positionId, "WITHDRAWAL_COMPLETE", eventKey, () =>
     buildWithdrawalAlertMessage({
-      position,
       receipt: params.receipt,
       execution: params.execution,
       policyMode: params.policyMode,

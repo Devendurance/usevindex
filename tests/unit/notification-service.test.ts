@@ -179,17 +179,19 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await closeTestDb();
+  if (dbAvailable) await closeTestDb();
 });
 
 // Delivery tests seed the same (position, chat) subscription; the schema
 // allows exactly one active subscription per position, so each test starts
-// from a clean subscription/delivery state.
+// from a clean subscription/delivery state. Telegram-failure audits are also
+// cleared so audit-count assertions stay precise.
 beforeEach(async () => {
   mockSend.mockClear();
   if (!dbAvailable) return;
   await db.delete(notificationDeliveries);
   await db.delete(telegramSubscriptions);
+  await db.delete(auditEvents).where(eq(auditEvents.positionId, POSITION_ID));
 });
 
 describe("risk alert content", () => {
@@ -215,7 +217,6 @@ describe("risk alert content", () => {
 describe("withdrawal alert content", () => {
   it("contains verified amounts, safe wallet, KeeperHub id, canonical tx link and drill line", () => {
     const message = buildWithdrawalAlertMessage({
-      position: positionRow as never,
       receipt: receiptFacts as never,
       execution: executionRow as never,
       policyMode: "DRILL_HIGH_SENSITIVITY",
@@ -238,7 +239,6 @@ describe("withdrawal alert content", () => {
 
   it("omits the drill line for STANDARD policy mode", () => {
     const message = buildWithdrawalAlertMessage({
-      position: positionRow as never,
       receipt: receiptFacts as never,
       execution: executionRow as never,
       policyMode: "STANDARD",
@@ -327,14 +327,47 @@ describe("delivery behavior", () => {
     expect(rows[0].status).toBe("FAILED");
     expect(rows[0].errorCode).toBe("TELEGRAM_HTTP_403");
     const audits = await db.select().from(auditEvents).where(eq(auditEvents.eventType, "TELEGRAM_ALERT_FAILED"));
-    expect(audits.length).toBeGreaterThan(0);
+    expect(audits).toHaveLength(1);
   });
 
-  it.skipIf(!dbAvailable)("a throwing transport never propagates and records a FAILED delivery", async () => {
+  it.skipIf(!dbAvailable)("a throwing transport never propagates and records a FAILED delivery + audit", async () => {
     mockSend.mockRejectedValueOnce(new Error("boom"));
     await seedSubscription();
     const outcome = await notifyRiskAlert({ db, positionId: POSITION_ID, decision: decisionRow as never, policy, matchedFamilies });
     expect(outcome.failed).toBe(true);
+    expect(outcome.errorCode).toBe("TELEGRAM_ALERT_FAILED");
+    const rows = await db.select().from(notificationDeliveries).where(eq(notificationDeliveries.eventKey, `decision:${DECISION_ID}`));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("FAILED");
+    expect(rows[0].errorCode).toBe("TELEGRAM_ALERT_FAILED");
+    const audits = await db.select().from(auditEvents).where(eq(auditEvents.eventType, "TELEGRAM_ALERT_FAILED"));
+    expect(audits).toHaveLength(1);
+  });
+
+  it("a failing position lookup yields a failed outcome and never throws", async () => {
+    // Pre-flight lookups run outside deliverTelegramAlert's try, so they are
+    // wrapped individually; a stubbed db whose select throws proves the
+    // never-throw contract without touching the real database.
+    const brokenDb = { select: () => { throw new Error("db down"); } } as never;
+    const risk = await notifyRiskAlert({
+      db: brokenDb,
+      positionId: POSITION_ID,
+      decision: decisionRow as never,
+      policy,
+      matchedFamilies,
+    });
+    expect(risk.failed).toBe(true);
+    expect(risk.errorCode).toBe("TELEGRAM_ALERT_FAILED");
+    const withdrawal = await notifyWithdrawalComplete({
+      db: brokenDb,
+      positionId: POSITION_ID,
+      receipt: receiptFacts as never,
+      execution: executionRow as never,
+      policyMode: "DRILL_HIGH_SENSITIVITY",
+      policyLabel: "Protection Drill / High Sensitivity",
+    });
+    expect(withdrawal.failed).toBe(true);
+    expect(withdrawal.errorCode).toBe("TELEGRAM_ALERT_FAILED");
   });
 
   it.skipIf(!dbAvailable)("test alert sends the fixed message with no fake incident", async () => {
