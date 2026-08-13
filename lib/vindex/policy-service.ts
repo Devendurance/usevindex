@@ -35,6 +35,7 @@ import { canonicalPositionId, refreshCurrentProtectedPosition } from "./position
 import { getSafeWalletConfig } from "./safe-wallet";
 import type { KeeperHubClient } from "./keeperhub";
 import type { CanonicalReadClient } from "./public-client";
+import { notifyRiskAlert } from "./notification-service";
 
 export type ProtectionState = "DRAFT" | "WATCHING" | "ELEVATED" | "CONFIRMING";
 
@@ -683,6 +684,10 @@ export const evaluateProtectionPolicy = async (
         decision.id,
         reRead.blockNumber,
       );
+      // P1: best-effort risk alert — exactly once per decision (dedup by
+      // eventKey). Fire-and-forget: Telegram must never block the state
+      // machine or alter its return value/timing.
+      void notifyRiskAlert({ db, positionId, decision, policy, matchedFamilies: matchedFamiliesView });
       return {
         positionId,
         state: "CONFIRMING",

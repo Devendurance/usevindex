@@ -22,6 +22,7 @@ import { VindexApiError } from "./errors";
 import { readCanonicalChainState, type CanonicalReadClient } from "./public-client";
 import { createFailoverPublicClient } from "./rpc-failover";
 import { getArmedPolicy, getAuditEvents, settleCompletedProtection } from "./policy-service";
+import { notifyWithdrawalComplete } from "./notification-service";
 import { normalizeTransactionLink } from "./validation";
 import { canonicalPositionId } from "./position-service";
 import { validateSafeWallet } from "./safe-wallet";
@@ -631,6 +632,22 @@ export const verifyEvacuationDestination = async (
 
   await writeAudit(db, positionId, "RESCUE_RECEIPT_CREATED", { executionId, receiptId: receipt.id, txHash: receipt.txHash }, execution.decisionId, receipt.txHash);
   await writeAudit(db, positionId, "POSITION_PROTECTED", { executionId, receiptId: receipt.id, verifiedAmount: delta.toString(), verifiedAt: checkAt.toISOString() }, execution.decisionId, receipt.txHash);
+
+  // P1: best-effort protection-complete alert — only after destination
+  // verification passes and the receipt exists (PROTECTED). Never blocks.
+  // policyMode comes from the persisted rescue_receipts row (it survives the
+  // settle below, which disarms the armed policy), never the armed snapshot.
+  void notifyWithdrawalComplete({
+    db,
+    positionId,
+    receipt: { ...receipt, policyMode: receipt.policyMode },
+    execution,
+    policyMode: receipt.policyMode,
+    policyLabel:
+      receipt.policyMode === "DRILL_HIGH_SENSITIVITY"
+        ? "Protection Drill / High Sensitivity"
+        : "Standard",
+  });
 
   // The position is protected; settle the lifecycle so the next protection
   // session starts clean. Idempotent: disarms the armed policy (resolving any

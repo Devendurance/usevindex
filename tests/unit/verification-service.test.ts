@@ -2,15 +2,17 @@
 // receipt idempotency/concurrency, drill labeling, and the zero-write
 // invariant. Isolated test DB; chain reads faked — no network, no writes.
 
-import { describe, expect, it, afterAll, beforeAll } from "vitest";
+import { describe, expect, it, vi, afterAll, beforeAll } from "vitest";
 import { eq } from "drizzle-orm";
 
 import {
   auditEvents,
   executions,
+  notificationDeliveries,
   rescueReceipts,
   signalObservations,
   simulations,
+  telegramSubscriptions,
   threatDecisions,
   verificationChecks,
 } from "../../db/schema";
@@ -24,6 +26,13 @@ import type { KeeperHubClient, KeeperHubWallet } from "../../lib/vindex/keeperhu
 import type { CanonicalReadClient } from "../../lib/vindex/public-client";
 import type { VindexEnv } from "../../lib/vindex/env";
 import { closeTestDb, getTestDb } from "./helpers/test-db";
+
+// The P1 withdrawal-alert hook is fire-and-forget but still calls the
+// Telegram transport; mock it so no real network traffic ever leaves the
+// test process (mirrors notification-service.test.ts).
+vi.mock("../../lib/telegram/client", () => ({
+  sendTelegramMessage: vi.fn(async () => ({ ok: true, messageId: "100", errorCode: null })),
+}));
 
 const ENV: VindexEnv = {
   baseSepoliaRpcUrl: "https://sepolia.base.org",
@@ -201,6 +210,10 @@ beforeAll(async () => {
   await db.delete(simulations);
   await db.delete(threatDecisions);
   await db.delete(signalObservations);
+  // P1 tables: deliveries/subscriptions must start clean so the alert-hook
+  // assertions below see only the rows this run creates.
+  await db.delete(notificationDeliveries);
+  await db.delete(telegramSubscriptions);
   await setSafeWalletConfig(db, SAFE_WALLET);
 });
 
@@ -305,6 +318,49 @@ describe("success path", () => {
     expect(checks[0]?.verified).toBe(true);
     const receipts = await db.select().from(rescueReceipts).where(eq(rescueReceipts.executionId, executionId));
     expect(receipts).toHaveLength(1);
+  });
+
+  it.skipIf(!dbAvailable)("P1: protection complete alert fires exactly once per receipt", async () => {
+    now = () => new Date("2026-08-12T12:00:00.000Z");
+    const executionId = await seedM7Execution();
+    await db.insert(telegramSubscriptions).values({
+      positionId: POSITION_ID,
+      chatId: "42424242",
+      riskAlertsEnabled: true,
+      withdrawalAlertsEnabled: true,
+    });
+    const result = verifiedOf(await verify(executionId));
+    expect(result.receipt.status).toBe("PROTECTED");
+
+    // The hook is fire-and-forget (`void notifyWithdrawalComplete(...)`), so
+    // poll until the in-flight delivery has been written (or the deadline).
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      const seen = await db
+        .select()
+        .from(notificationDeliveries)
+        .where(eq(notificationDeliveries.eventType, "WITHDRAWAL_COMPLETE"));
+      if (seen.length >= 1) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    let rows = await db
+      .select()
+      .from(notificationDeliveries)
+      .where(eq(notificationDeliveries.eventType, "WITHDRAWAL_COMPLETE"));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("SENT");
+    expect(rows[0].eventKey).toBe(`receipt:${result.receipt.id}`);
+
+    // Idempotent re-verify (existing verified check + receipt) must not
+    // alert again; the early return never reaches the hook.
+    const again = verifiedOf(await verify(executionId));
+    expect(again.receipt.id).toBe(result.receipt.id);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    rows = await db
+      .select()
+      .from(notificationDeliveries)
+      .where(eq(notificationDeliveries.eventType, "WITHDRAWAL_COMPLETE"));
+    expect(rows).toHaveLength(1);
   });
 
   it.skipIf(!dbAvailable)("a prior safe-wallet balance is handled using delta, not absolute final balance", async () => {

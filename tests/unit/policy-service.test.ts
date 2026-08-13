@@ -3,9 +3,14 @@
 // idempotency. Uses the isolated test database; chain/KeeperHub/collection
 // interaction is faked — no network, no real transactions.
 
-import { describe, expect, it, afterAll, beforeAll } from "vitest";
+import { describe, expect, it, vi, afterAll, beforeAll } from "vitest";
 
-import { signalObservations } from "../../db/schema";
+import {
+  notificationDeliveries,
+  protectedPositions,
+  signalObservations,
+  telegramSubscriptions,
+} from "../../db/schema";
 import {
   armPolicy,
   assertSafeWalletChangeAllowed,
@@ -22,6 +27,12 @@ import type { KeeperHubClient, KeeperHubWallet } from "../../lib/vindex/keeperhu
 import type { CanonicalReadClient } from "../../lib/vindex/public-client";
 import type { VindexEnv } from "../../lib/vindex/env";
 import { closeTestDb, getTestDb } from "./helpers/test-db";
+
+// The P1 alert hooks are fire-and-forget but still call the Telegram
+// transport; mock it so no real network traffic ever leaves the test process.
+vi.mock("../../lib/telegram/client", () => ({
+  sendTelegramMessage: vi.fn(async () => ({ ok: true, messageId: "100", errorCode: null })),
+}));
 
 const ENV: VindexEnv = {
   baseSepoliaRpcUrl: "https://sepolia.base.org",
@@ -197,6 +208,10 @@ beforeAll(async () => {
   if (!dbAvailable) return;
   db = await getTestDb();
   await db.delete(signalObservations);
+  // P1 tables: deliveries/subscriptions must start clean so the alert-hook
+  // assertions below see only the rows this run creates.
+  await db.delete(notificationDeliveries);
+  await db.delete(telegramSubscriptions);
 });
 
 afterAll(async () => {
@@ -389,5 +404,96 @@ describe("boundaries", () => {
       fs.readFile("lib/vindex/policy-service.ts", "utf8"),
     );
     expect(source).not.toContain("threatScore");
+  });
+});
+
+describe("P1 risk alert hook", () => {
+  // The hook is intentionally fire-and-forget (`void notifyRiskAlert(...)`),
+  // so after the state-machine call we poll until the in-flight delivery has
+  // been written (or the deadline passes) before asserting.
+  const waitForRiskDeliveries = async (
+    expected: number,
+    deadlineMs = 2000,
+  ): Promise<void> => {
+    const deadline = Date.now() + deadlineMs;
+    let count = 0;
+    while (Date.now() < deadline) {
+      const rows = await db.select().from(notificationDeliveries);
+      count = rows.filter((r) => r.eventType === "RISK_ALERT").length;
+      if (count >= expected) return;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  };
+
+  it.skipIf(!dbAvailable)("a fresh confirmation sends exactly one risk alert", async () => {
+    now = () => new Date("2026-08-12T12:00:00.000Z");
+    await db.delete(notificationDeliveries);
+    await db.delete(telegramSubscriptions);
+    await db
+      .insert(protectedPositions)
+      .values({
+        id: POSITION_ID,
+        chainId: 84532,
+        protocol: "aave-v3",
+        poolAddress: `0x${"11".repeat(20)}`,
+        assetAddress: `0x${"22".repeat(20)}`,
+        assetSymbol: "USDC",
+        assetDecimals: 6,
+        positionTokenAddress: `0x${"33".repeat(20)}`,
+        executionWallet: WALLET,
+        safeWallet: SAFE_WALLET,
+        latestPositionAmount: "5000077",
+        latestUnderlyingWalletBalance: "0",
+        latestNativeBalanceWei: "20000000000000000",
+        latestAllowance: "0",
+        latestBlockNumber: "45384000",
+        latestBlockTimestamp: new Date(),
+        observedAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .onConflictDoNothing();
+    await db.insert(telegramSubscriptions).values({
+      positionId: POSITION_ID,
+      chatId: "42424242",
+      telegramUsername: "vindex_user",
+      riskAlertsEnabled: true,
+      withdrawalAlertsEnabled: true,
+    });
+    await arm("DRILL_HIGH_SENSITIVITY");
+    const nowMs = now().getTime();
+    await seedDrillBaseline(nowMs);
+    const first = await evaluateProtectionPolicy({
+      env: ENV,
+      db,
+      positionId: POSITION_ID,
+      collect: makePassingReRead(),
+      publicClient: createFakeRpc(),
+      keeperHubClient: createFakeKeeperHub(),
+      now,
+    });
+    expect(first.state).toBe("CONFIRMING");
+    await waitForRiskDeliveries(1);
+    let rows = await db.select().from(notificationDeliveries);
+    expect(rows.filter((r) => r.eventType === "RISK_ALERT")).toHaveLength(1);
+    expect(rows.filter((r) => r.eventType === "RISK_ALERT")[0]?.status).toBe("SENT");
+
+    // A repeated evaluation is idempotent (returns the same CONFIRMING
+    // decision) and must not alert again.
+    const second = await evaluateProtectionPolicy({
+      env: ENV,
+      db,
+      positionId: POSITION_ID,
+      collect: makePassingReRead("2001"),
+      publicClient: createFakeRpc(),
+      keeperHubClient: createFakeKeeperHub(),
+      now,
+    });
+    expect(second.state).toBe("CONFIRMING");
+    // Give any (unexpected) in-flight second delivery time to land, then
+    // assert the dedup held.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    rows = await db.select().from(notificationDeliveries);
+    expect(rows.filter((r) => r.eventType === "RISK_ALERT")).toHaveLength(1);
   });
 });
