@@ -34,6 +34,7 @@ import {
   POOL,
   POSITION_ID,
   SAFE_WALLET,
+  WALLET,
   createFakeKeeperHub,
   createFakeRpc,
   freshChainState,
@@ -180,6 +181,22 @@ describe("runDemoDrill", () => {
     expect(view.requiredSignals).toBe(2);
     expect(view.drillLabel).toBe(DRILL_LABEL);
 
+    // The completion view carries the buildProof proof for the demo run.
+    expect(view.proof.demoRunId).toBe(run.id);
+    expect(view.proof.executionWallet).toBe(WALLET.toLowerCase());
+    expect(Array.isArray(view.proof.auditSequence)).toBe(true);
+    expect(view.proof.auditSequence.length).toBeGreaterThan(0);
+    expect(view.proof.auditSequence).toContain("POSITION_PROTECTED");
+    expect(view.proof.evacuation.executionId).toBe(view.executionId);
+    expect(view.proof.evacuation.keeperhubExecutionId).toBe(view.keeperhubExecutionId);
+    expect(view.proof.evacuation.txHash).toBe(withdrawTxHash);
+    expect(view.proof.evacuation.actualWithdrawAmount).toBe("5000123");
+    expect(view.proof.destination.verified).toBe(true);
+    expect(view.proof.receipt.status).toBe("PROTECTED");
+    expect(view.proof.receipt.verifiedAmount).toBe("5000123");
+    expect(view.proof.secretScanPassed).toBe(true);
+    expect(view.proof.drill.drillLabel).toBe(DRILL_LABEL);
+
     // (f) services invoked in the documented order (the completion view
     // re-reads the receipt for the proof).
     expect(calls.map((c) => c.service)).toEqual([
@@ -236,6 +253,33 @@ describe("runDemoDrill", () => {
     expect(decisionRow?.state).toBe("RESOLVED");
   });
 
+  it.skipIf(!dbAvailable)("an explicitly undefined injected service falls back to the real implementation", async () => {
+    const run = await seedRun();
+    await seedSignals();
+    const { state, keeperHub } = drillContext();
+
+    const view = await runDemoDrill({
+      env: ENV,
+      db,
+      runId: run.id,
+      keeperHubClient: keeperHub.client,
+      publicClient: createFakeRpc(state),
+      now: NOW,
+      services: {
+        getRescueReceipt: undefined,
+        settleCompletedProtection: undefined,
+        executeEvacuation: undefined,
+      },
+    });
+
+    // The real services were used: the drill completed with a receipt and a
+    // settled lifecycle instead of crashing on the PROTECTED path.
+    expect(view.status).toBe("PROTECTED");
+    expect(view.receiptId).not.toBeNull();
+    expect(view.proof.receipt.status).toBe("PROTECTED");
+    expect(await getArmedPolicy(db, POSITION_ID)).toBeNull();
+  });
+
   it.skipIf(!dbAvailable)("a second drill call on the same run cannot create a second execution", async () => {
     const run = await seedRun();
     await seedSignals();
@@ -265,6 +309,8 @@ describe("runDemoDrill", () => {
     expect(second.decisionId).toBe(first.decisionId);
     expect(second.executionId).toBe(first.executionId);
     expect(second.receiptId).toBe(first.receiptId);
+    expect(second.proof.demoRunId).toBe(run.id);
+    expect(second.proof.receipt.status).toBe("PROTECTED");
     // No second broadcast and still exactly one execution row.
     expect(keeperHub.calls.execute.filter((c) => c.functionName === "withdraw")).toHaveLength(1);
     const decisionExecs = await db

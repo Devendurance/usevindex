@@ -773,7 +773,7 @@ export const prepareDemoPosition = async (options: DemoRunOptions): Promise<Demo
         status: "CREATED",
         positionId,
         startingBlockNumber: block.toString(),
-        startingBlockTimestamp: new Date(),
+        startingBlockTimestamp: now(),
         preDemoSafeWalletBalance: safePosition.underlyingBalanceBaseUnits.toString(),
       })
       .onConflictDoNothing()
@@ -869,11 +869,13 @@ export type DemoDrillCompletionView = {
   requiredSignals: number | null;
   drillLabel: string;
   status: "PROTECTED";
+  proof: DemoRunProof;
 };
 
 const buildDrillCompletionView = async (
   db: VindexDb,
   run: typeof demoRuns.$inferSelect,
+  positionId: string,
   getReceipt: typeof getRescueReceipt,
 ): Promise<DemoDrillCompletionView> => {
   const decision = run.decisionId !== null
@@ -898,6 +900,7 @@ const buildDrillCompletionView = async (
     requiredSignals: decision !== null ? DRILL_TEMPLATE.requiredSignals : null,
     drillLabel: DRILL_LABEL,
     status: "PROTECTED",
+    proof: await buildProof(db, run, positionId, "DEMO_STAGE_VERIFIED"),
   };
 };
 
@@ -914,17 +917,19 @@ export const runDemoDrill = async (options: DemoDrillOptions): Promise<DemoDrill
     options.keeperHubClient ??
     createKeeperHubClient({ apiKey: env.keeperhubApiKey, baseUrl: env.keeperhubApiBaseUrl });
   const rpc = readPublicClient(options) as unknown as import("./public-client").CanonicalReadClient;
+  // Explicit per-service fallback: an injected `undefined`/null entry must
+  // never clobber the real implementation.
+  const injected = options.services ?? {};
   const services = {
-    disarmPolicy,
-    armPolicy,
-    collectLiveSignalObservations,
-    evaluateProtectionPolicy,
-    prepareEvacuation,
-    executeEvacuation,
-    verifyEvacuationDestination,
-    getRescueReceipt,
-    settleCompletedProtection,
-    ...options.services,
+    disarmPolicy: injected.disarmPolicy ?? disarmPolicy,
+    armPolicy: injected.armPolicy ?? armPolicy,
+    collectLiveSignalObservations: injected.collectLiveSignalObservations ?? collectLiveSignalObservations,
+    evaluateProtectionPolicy: injected.evaluateProtectionPolicy ?? evaluateProtectionPolicy,
+    prepareEvacuation: injected.prepareEvacuation ?? prepareEvacuation,
+    executeEvacuation: injected.executeEvacuation ?? executeEvacuation,
+    verifyEvacuationDestination: injected.verifyEvacuationDestination ?? verifyEvacuationDestination,
+    getRescueReceipt: injected.getRescueReceipt ?? getRescueReceipt,
+    settleCompletedProtection: injected.settleCompletedProtection ?? settleCompletedProtection,
   };
 
   const orgWallet = await keeperHubClient.getOrganizationWallet();
@@ -943,7 +948,7 @@ export const runDemoDrill = async (options: DemoDrillOptions): Promise<DemoDrill
     throw new VindexApiError("BAD_REQUEST", "Demo run does not belong to the current position.", 409);
   }
   if (initialRun.status === "PROTECTED") {
-    return buildDrillCompletionView(db, initialRun, services.getRescueReceipt);
+    return buildDrillCompletionView(db, initialRun, positionId, services.getRescueReceipt);
   }
   if (initialRun.status === "FAILED") {
     throw new VindexApiError("BAD_REQUEST", `Demo run is already failed (${initialRun.errorCode ?? "unknown"}). Start a fresh demo run.`, 409);
@@ -1062,13 +1067,14 @@ export const runDemoDrill = async (options: DemoDrillOptions): Promise<DemoDrill
   await services.settleCompletedProtection(db, positionId, now);
 
   const finalRun = (await db.select().from(demoRuns).where(eq(demoRuns.id, runId)).limit(1))[0] ?? run;
-  return buildDrillCompletionView(db, finalRun, services.getRescueReceipt);
+  return buildDrillCompletionView(db, finalRun, positionId, services.getRescueReceipt);
 };
 
 const buildProof = async (
   db: VindexDb,
   run: typeof demoRuns.$inferSelect,
   positionId: string,
+  stageVerifiedEventType: string = "M10_STAGE_VERIFIED",
 ): Promise<DemoRunProof> => {
   const events = await db
     .select()
@@ -1078,7 +1084,7 @@ const buildProof = async (
     .limit(60);
   const sequence = events.map((e) => e.eventType).reverse();
   const stageVerified = events
-    .filter((e) => e.eventType === "M10_STAGE_VERIFIED")
+    .filter((e) => e.eventType === stageVerifiedEventType)
     .reverse()
     .map((e) => e.detailsJson)
     .map((json) => {
