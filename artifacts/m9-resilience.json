@@ -1,0 +1,62 @@
+{
+  "milestone": "M9",
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "scenarios": [
+    {
+      "scenario": "KeeperHub unavailable before broadcast",
+      "expected": "KEEPERHUB_UNAVAILABLE, ZERO broadcast, no direct-RPC fallback",
+      "observed": "KEEPERHUB_UNAVAILABLE",
+      "invariantProof": "executeCount=0; execution layer is KeeperHub only"
+    },
+    {
+      "scenario": "Simulation revert blocks execution",
+      "expected": "EXECUTION_FAILED (FINAL_SIMULATION_FAILED), ZERO broadcast, revert reason persisted",
+      "observed": "EXECUTION_FAILED",
+      "invariantProof": "executeCount=0; errorCode=FINAL_SIMULATION_FAILED"
+    },
+    {
+      "scenario": "Unknown submission recovers with the same idempotency key",
+      "expected": "SUBMISSION_UNKNOWN then recovery; never a fresh key for the same evacuation",
+      "observed": "SUBMISSION_UNKNOWN -> EXECUTED_VERIFYING_DESTINATION",
+      "invariantProof": "sameKey=true; recovery executed with persisted key; no second logical withdrawal"
+    },
+    {
+      "scenario": "Duplicate trigger converges on one logical execution",
+      "expected": "one prepared execution, one stable idempotency key, one broadcast",
+      "observed": "executionRows=1, broadcasts=1",
+      "invariantProof": "executionRows=1; executeCount=1"
+    },
+    {
+      "scenario": "Primary RPC outage -> fallback read succeeds",
+      "expected": "block number read via fallback endpoint",
+      "observed": "block=45406541, servedBy=https://base-sepolia-rpc.publicnode.com",
+      "invariantProof": "failures=1, servedBy=https://base-sepolia-rpc.publicnode.com"
+    },
+    {
+      "scenario": "All RPC endpoints down",
+      "expected": "RPC_ALL_UNAVAILABLE surfaced; no silent zero",
+      "observed": "RPC_ALL_UNAVAILABLE",
+      "invariantProof": "failureDiagnostics=2"
+    },
+    {
+      "scenario": "Destination balance mismatch",
+      "expected": "INTERVENTION_REQUIRED; no PROTECTED; no second withdrawal",
+      "observed": "INTERVENTION_REQUIRED",
+      "invariantProof": "failureReason=Safe-wallet balance decreased after the withdrawal."
+    },
+    {
+      "scenario": "Audit trail completeness and hygiene",
+      "expected": "material failure transitions audited; no secrets",
+      "observed": "events=54, meaningful=true, secretFree=true",
+      "invariantProof": "events=54; secretFree=true"
+    }
+  ],
+  "zeroWritesProof": {
+    "keeperhubBroadcasts": 0,
+    "onchainWrites": 0,
+    "note": "all scenarios ran against the isolated vindex_test database with fault-injected adapters; production M8 evidence untouched"
+  },
+  "secretScanPassed": true,
+  "verifiedAt": "2026-08-13T00:36:12.926Z"
+}

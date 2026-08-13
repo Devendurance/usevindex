@@ -1,0 +1,96 @@
+{
+  "milestone": "M2",
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "keeperHubWallet": "0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+  "asset": "0xba50Cd2A20f6DA35D788639E581bca8d0B5d4D5f",
+  "aToken": "0x10F1A9D11CDf50041f3f8cB7191CBE2f31750ACC",
+  "pool": "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27",
+  "faucet": "0xD9145b5F45Ad4519c7ACcD6E0A4A82e83bB8A6Dc",
+  "supplyAmountBaseUnits": "5000000",
+  "supplyAmountFormatted": "5",
+  "preState": {
+    "usdcBalance": "0",
+    "aUsdcBalance": "0",
+    "allowance": "1",
+    "blockNumber": "45381247"
+  },
+  "funding": {
+    "executionId": "2v6a743vkxvzvuogn9ds5",
+    "transactionHash": "0x79764598bc176ef32c679f06988c84632e6b81718e59f8bfe765ca7765a158b4",
+    "transactionLink": "https://sepolia.basescan.org/tx/0x79764598bc176ef32c679f06988c84632e6b81718e59f8bfe765ca7765a158b4",
+    "sponsored": true,
+    "receiptVerified": true,
+    "blockNumber": 45381249,
+    "required": true,
+    "simulation": {
+      "intentId": "m2-funding",
+      "chainId": 84532,
+      "from": "0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+      "to": "0xD9145b5F45Ad4519c7ACcD6E0A4A82e83bB8A6Dc",
+      "function": "mint",
+      "functionArgs": "[\"0xba50Cd2A20f6DA35D788639E581bca8d0B5d4D5f\",\"0x675638ddbbf8b70b906d68e3485da72c6c63d130\",\"5000000\"]",
+      "success": true,
+      "status": "simulated",
+      "wouldRevert": false,
+      "gasEstimate": "88834",
+      "simulatedReturnValue": "5000000",
+      "observedAt": "2026-08-12T10:33:04.398Z"
+    },
+    "mintAmountBaseUnits": "5000000"
+  },
+  "approval": {
+    "executionId": "sgxixua745cevbdetyegk",
+    "transactionHash": "0x5b023e02cef8b2aa7af9f703239726e4b3c2ea17ec0c5efaca5ba65d5dc5775d",
+    "transactionLink": "https://sepolia.basescan.org/tx/0x5b023e02cef8b2aa7af9f703239726e4b3c2ea17ec0c5efaca5ba65d5dc5775d",
+    "sponsored": true,
+    "receiptVerified": true,
+    "blockNumber": 45381253,
+    "required": true,
+    "simulation": {
+      "intentId": "m2-approve",
+      "chainId": 84532,
+      "from": "0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+      "to": "0xba50Cd2A20f6DA35D788639E581bca8d0B5d4D5f",
+      "function": "approve",
+      "functionArgs": "[\"0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27\",\"5000000\"]",
+      "success": true,
+      "status": "simulated",
+      "wouldRevert": false,
+      "gasEstimate": "29484",
+      "simulatedReturnValue": true,
+      "observedAt": "2026-08-12T10:33:08.208Z"
+    },
+    "allowanceAfter": "5000000"
+  },
+  "supply": {
+    "executionId": "l9a2ij61uz0awydyf87ei",
+    "transactionHash": "0xd5362daf62ce1abb0b50f4f5a227e946fdec3e3675272da7d34981b7d32ce8db",
+    "transactionLink": "https://sepolia.basescan.org/tx/0xd5362daf62ce1abb0b50f4f5a227e946fdec3e3675272da7d34981b7d32ce8db",
+    "sponsored": true,
+    "receiptVerified": true,
+    "blockNumber": 45381256,
+    "simulation": {
+      "intentId": "m2-supply",
+      "chainId": 84532,
+      "from": "0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+      "to": "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27",
+      "function": "supply",
+      "functionArgs": "[\"0xba50Cd2A20f6DA35D788639E581bca8d0B5d4D5f\",\"5000000\",\"0x675638ddbbf8b70b906d68e3485da72c6c63d130\",0]",
+      "success": true,
+      "status": "simulated",
+      "wouldRevert": false,
+      "gasEstimate": "199613",
+      "simulatedReturnValue": null,
+      "observedAt": "2026-08-12T10:33:16.097Z"
+    }
+  },
+  "postState": {
+    "usdcBalance": "0",
+    "aUsdcBalance": "4999999",
+    "allowance": "0",
+    "blockNumber": "45381256"
+  },
+  "positionVerified": true,
+  "verifiedAt": "2026-08-12T10:33:21.631Z"
+}

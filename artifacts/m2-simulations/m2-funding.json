@@ -1,0 +1,14 @@
+{
+  "intentId": "m2-funding",
+  "chainId": 84532,
+  "from": "0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+  "to": "0xD9145b5F45Ad4519c7ACcD6E0A4A82e83bB8A6Dc",
+  "function": "mint",
+  "functionArgs": "[\"0xba50Cd2A20f6DA35D788639E581bca8d0B5d4D5f\",\"0x675638ddbbf8b70b906d68e3485da72c6c63d130\",\"5000000\"]",
+  "success": true,
+  "status": "simulated",
+  "wouldRevert": false,
+  "gasEstimate": "88834",
+  "simulatedReturnValue": "5000000",
+  "observedAt": "2026-08-12T10:33:04.398Z"
+}

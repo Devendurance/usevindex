@@ -58,9 +58,10 @@ export function SiteNav({ variant = "marketing" }: { variant?: "marketing" | "pr
 
         <div className="site-nav__actions">
           <Link
-            className={`secondary-button secondary-button--layered site-nav__demo${isActive("/demo") ? " is-active" : ""}`}
+            className="secondary-button secondary-button--layered site-nav__demo"
             href="/demo"
             aria-current={isActive("/demo") ? "page" : undefined}
+            onClick={closeMenu}
           >
             View demo
           </Link>

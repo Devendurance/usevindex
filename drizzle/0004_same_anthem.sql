@@ -1,0 +1,1 @@
+ALTER TABLE "executions" ADD COLUMN "block_timestamp" timestamp with time zone;
