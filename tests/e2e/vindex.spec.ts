@@ -756,6 +756,9 @@ test.describe("D1 setup current state + arm", () => {
     });
     await mockSetupApi(page, NO_EVENT_STATUS);
     await page.goto("/setup", { waitUntil: "domcontentloaded" });
+    // Hydration sync — wait for the client-rendered summary (SSR shows "—")
+    // before snapshotting the body text so the fetch has resolved.
+    await expect(page.locator(".evidence-line").filter({ hasText: "CURRENT PROTECTION" })).toContainText("NOT ARMED");
     await expect(eventLine(page, "LAST PROTECTION EVENT")).toContainText("NONE");
     await expect(page.getByRole("link", { name: "PROTECTED" })).toHaveCount(0);
     const text = await page.locator("body").innerText();
@@ -765,6 +768,8 @@ test.describe("D1 setup current state + arm", () => {
   test("setup surfaces have no serious accessibility violations", async ({ page }) => {
     await mockSetupApi(page, POST_PROTECTED_STATUS);
     await page.goto("/setup", { waitUntil: "domcontentloaded" });
+    // Hydration sync — analyze the fixture-rendered page, not the SSR shell.
+    await expect(page.locator(".evidence-line").filter({ hasText: "CURRENT PROTECTION" })).toContainText("NOT ARMED");
     const results = await new AxeBuilder({ page }).analyze();
     const serious = results.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious");
     expect(serious).toEqual([]);
@@ -1325,6 +1330,357 @@ test.describe("M8 destination verification + receipt", () => {
     const text = await page.locator("body").innerText();
     expect(text).not.toContain("swap executed");
     expect(text).not.toContain("Aave is being hacked");
+  });
+});
+
+test.describe("D1 live demo surface", () => {
+  // /demo is the LIVE demo surface: every fixture below is served through
+  // page.route interception (zero real writes). The status route is stateful
+  // per test so the polled view advances exactly like the persisted DB.
+  const LIVE_POSITION = { exists: true, positionAmountBaseUnits: "5000017", underlyingWalletBalance: "0", live: true, observedAt: "2026-08-12T12:00:30.000Z" };
+  const EMPTY_POSITION = { exists: false, positionAmountBaseUnits: "0", underlyingWalletBalance: "0", live: false, observedAt: null };
+  const FULL_TX_HASH = "0x14e84855f63b09831fc7e23ccc31f009acf6f73fb5eb483e745d0954d2777cc5";
+  const DRILL_LABEL = "PROTECTION DRILL — HIGH-SENSITIVITY POLICY";
+
+  const runOf = (overrides: Record<string, unknown> = {}) => ({
+    runId: "run-1",
+    status: "POSITION_CREATED",
+    fundingExecutionId: null,
+    approvalExecutionId: null,
+    supplyExecutionId: null,
+    policyId: null,
+    decisionId: null,
+    evacuationExecutionId: null,
+    rescueReceiptId: null,
+    errorCode: null,
+    startedAt: "2026-08-12T12:00:00.000Z",
+    updatedAt: "2026-08-12T12:00:10.000Z",
+    stageExecutionIds: { fund: null, approve: null, supply: null },
+    transactionHashes: { fund: null, approve: null, supply: null, evacuation: null },
+    transactionLinks: { fund: null, approve: null, supply: null, evacuation: null },
+    keeperhubExecutionId: null,
+    lastKeeperHubStatus: null,
+    ...overrides,
+  });
+
+  const mockStatus = (page: import("@playwright/test").Page, status: unknown) =>
+    page.route("**/api/vindex/demo/status", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(status) }),
+    );
+
+  const eventLine = (page: import("@playwright/test").Page, label: string) =>
+    page.locator(".evidence-line").filter({ hasText: label });
+
+  const IDLE_STATUS = setupStatusOf({
+    validation: { readyToPrepare: true, readyToArm: false, readyToRunDrill: false, reasons: ["No active demo run — prepare the demo position first."], inFlightJob: null },
+  });
+
+  const READY_TO_ARM_STATUS = setupStatusOf({
+    activeRun: runOf(),
+    currentPosition: LIVE_POSITION,
+    validation: { readyToPrepare: false, readyToArm: true, readyToRunDrill: true, reasons: [], inFlightJob: null },
+  });
+
+  const armedStatusOf = (mode: string) =>
+    setupStatusOf({
+      activeRun: runOf(),
+      currentPosition: LIVE_POSITION,
+      protection: { armed: true, mode, policyId: mode === "STANDARD" ? "p1" : "p2", armedAt: "2026-08-12T12:05:00.000Z" },
+      validation: { readyToPrepare: false, readyToArm: false, readyToRunDrill: true, reasons: [], inFlightJob: null },
+    });
+
+  const prepareStatusOf = (phase: "idle" | "funding" | "ready") => {
+    if (phase === "idle") return IDLE_STATUS;
+    if (phase === "funding") {
+      return setupStatusOf({
+        activeRun: runOf({
+          status: "FUNDED",
+          fundingExecutionId: "kh-fund-1",
+          stageExecutionIds: { fund: "kh-fund-1", approve: null, supply: null },
+          updatedAt: "2026-08-12T12:00:20.000Z",
+        }),
+        currentPosition: { exists: false, positionAmountBaseUnits: "0", underlyingWalletBalance: "0", live: false, observedAt: null },
+        validation: { readyToPrepare: false, readyToArm: false, readyToRunDrill: false, reasons: ["A demo run is already in progress (FUNDED)."], inFlightJob: "PREPARING" },
+      });
+    }
+    return setupStatusOf({
+      activeRun: runOf({
+        fundingExecutionId: "kh-fund-1",
+        approvalExecutionId: "kh-approve-1",
+        supplyExecutionId: "kh-supply-1",
+        stageExecutionIds: { fund: "kh-fund-1", approve: "kh-approve-1", supply: "kh-supply-1" },
+      }),
+      currentPosition: LIVE_POSITION,
+      validation: { readyToPrepare: false, readyToArm: true, readyToRunDrill: true, reasons: [], inFlightJob: null },
+    });
+  };
+
+  const DRILL_READY_STATUS = setupStatusOf({
+    activeRun: runOf(),
+    currentPosition: LIVE_POSITION,
+    protection: { armed: true, mode: "STANDARD", policyId: "p1", armedAt: "2026-08-12T12:05:00.000Z" },
+    validation: { readyToPrepare: false, readyToArm: false, readyToRunDrill: true, reasons: [], inFlightJob: null },
+  });
+
+  const DRILL_MATCHED_STATUS = setupStatusOf({
+    activeRun: runOf({ status: "CONFIRMED", policyId: "p2", decisionId: "d2" }),
+    currentPosition: LIVE_POSITION,
+    protection: { armed: true, mode: "DRILL_HIGH_SENSITIVITY", policyId: "p2", armedAt: "2026-08-12T12:06:00.000Z" },
+    drillProgress: { stage: "MATCHED", label: "Matched", matchedCount: 3, requiredSignals: 2, drillLabel: DRILL_LABEL },
+    validation: { readyToPrepare: false, readyToArm: false, readyToRunDrill: false, reasons: ["A demo run is already in progress (CONFIRMED)."], inFlightJob: null },
+  });
+
+  const PROOF_STATUS = setupStatusOf({
+    activeRun: runOf({
+      status: "EXECUTED",
+      decisionId: "d2",
+      evacuationExecutionId: "e7",
+      transactionHashes: { fund: null, approve: null, supply: null, evacuation: FULL_TX_HASH },
+      transactionLinks: { fund: null, approve: null, supply: null, evacuation: `https://sepolia.basescan.org/tx/${FULL_TX_HASH}` },
+      keeperhubExecutionId: "direct_evac_1",
+      lastKeeperHubStatus: "completed",
+    }),
+    currentPosition: EMPTY_POSITION,
+    protection: { armed: false, mode: null, policyId: null, armedAt: null },
+    drillProgress: { stage: "TRANSACTION_CONFIRMED", label: "Transaction confirmed", matchedCount: 3, requiredSignals: 2, drillLabel: DRILL_LABEL },
+    validation: { readyToPrepare: false, readyToArm: false, readyToRunDrill: false, reasons: [], inFlightJob: null },
+  });
+
+  const VERIFYING_STATUS = setupStatusOf({
+    activeRun: runOf({
+      status: "EXECUTED",
+      decisionId: "d2",
+      evacuationExecutionId: "e7",
+      transactionHashes: { fund: null, approve: null, supply: null, evacuation: FULL_TX_HASH },
+      keeperhubExecutionId: "direct_evac_1",
+      lastKeeperHubStatus: "completed",
+    }),
+    currentPosition: EMPTY_POSITION,
+    protection: { armed: false, mode: null, policyId: null, armedAt: null },
+    drillProgress: { stage: "VERIFYING_DESTINATION", label: "Verifying destination", matchedCount: 3, requiredSignals: 2, drillLabel: DRILL_LABEL },
+    validation: { readyToPrepare: false, readyToArm: false, readyToRunDrill: false, reasons: ["A demo run is already in progress (EXECUTED)."], inFlightJob: null },
+  });
+
+  const PROTECTED_EVENT = {
+    status: "PROTECTED",
+    receiptId: "715c429a-fbd3-41c6-9aca-5fcc2c6a665e",
+    executionId: "e8",
+    txHash: FULL_TX_HASH,
+    keeperhubExecutionId: "direct_evac_1",
+    verifiedAmount: "5000123",
+    safeWallet: "0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9",
+    destination: "0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9",
+    completedAt: "2026-08-12T21:03:41.000Z",
+  };
+
+  const PROTECTED_STATUS = setupStatusOf({
+    activeRun: null,
+    lastProtectionEvent: PROTECTED_EVENT,
+    currentPosition: EMPTY_POSITION,
+    protection: { armed: false, mode: null, policyId: null, armedAt: null },
+    drillProgress: { stage: "PROTECTED", label: "Protected", matchedCount: 0, requiredSignals: null, drillLabel: null },
+    validation: { readyToPrepare: false, readyToArm: false, readyToRunDrill: false, reasons: ["The demo position is not live (or could not be read)."], inFlightJob: null },
+  });
+
+  const FAILED_STATUS = setupStatusOf({
+    activeRun: runOf({
+      status: "FAILED",
+      errorCode: "CONSENSUS_FAILED",
+      stageExecutionIds: { fund: "kh-fund-1", approve: "kh-approve-1", supply: "kh-supply-1" },
+    }),
+    currentPosition: LIVE_POSITION,
+    protection: { armed: false, mode: null, policyId: null, armedAt: null },
+    validation: { readyToPrepare: true, readyToArm: true, readyToRunDrill: false, reasons: ["No active demo run — prepare the demo position first."], inFlightJob: null },
+  });
+
+  test.beforeEach(async ({ page }) => {
+    await page.route("**/api/**", (route) => route.abort());
+  });
+
+  test("demo page static shell renders without live state", async ({ page }) => {
+    await page.goto("/demo", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("See the protected route");
+    await expect(page.locator("body")).toContainText("SUPPORTED ROUTE");
+    await expect(page.getByRole("link", { name: "Open setup" })).toBeVisible();
+    await expect(page.locator("body")).toContainText("Live protection state is unavailable.");
+    await expect(page.getByRole("button", { name: "Prepare demo position" })).toBeDisabled();
+  });
+
+  test("idle state enables prepare and disables the drill with the blocking reason", async ({ page }) => {
+    await mockStatus(page, IDLE_STATUS);
+    await page.goto("/demo", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("button", { name: "Prepare demo position" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Run protection drill" })).toBeDisabled();
+    await expect(page.locator("body")).toContainText("No active demo run — prepare the demo position first.");
+    await expect(page.getByRole("link", { name: "Open monitor" })).toHaveAttribute("href", "/monitor");
+  });
+
+  test("prepare posts once and the prepare rail advances through persisted stages", async ({ page }) => {
+    let phase: "idle" | "funding" | "ready" = "idle";
+    const prepareBodies: string[] = [];
+    await Promise.all([
+      page.route("**/api/vindex/demo/status", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(prepareStatusOf(phase)) }),
+      ),
+      page.route("**/api/vindex/demo/prepare", async (route) => {
+        prepareBodies.push(route.request().postData() ?? "");
+        phase = "funding";
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ runId: "run-1", started: true }) });
+      }),
+    ]);
+    await page.goto("/demo", { waitUntil: "domcontentloaded" });
+    const prepareButton = page.getByRole("button", { name: "Prepare demo position" });
+    await expect(prepareButton).toBeEnabled();
+    await prepareButton.click();
+    await expect(eventLine(page, "Funding")).toContainText("DONE");
+    await expect(eventLine(page, "Approval")).toContainText("ACTIVE");
+    phase = "ready";
+    await expect(eventLine(page, "Aave supply")).toContainText("DONE");
+    await expect(eventLine(page, "Position ready")).toContainText("DONE");
+    expect(prepareBodies).toEqual(["{}"]);
+  });
+
+  test("arm posts the selected mode and disarms back to NOT ARMED", async ({ page }) => {
+    let armed = false;
+    const armBodies: Array<{ mode?: string }> = [];
+    const disarmRequests: string[] = [];
+    await Promise.all([
+      page.route("**/api/vindex/demo/status", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(armed ? armedStatusOf("DRILL_HIGH_SENSITIVITY") : READY_TO_ARM_STATUS) }),
+      ),
+      page.route("**/api/vindex/positions/arm", async (route) => {
+        armBodies.push(JSON.parse(route.request().postData() ?? "{}") as { mode?: string });
+        armed = true;
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ mode: "DRILL_HIGH_SENSITIVITY", isArmed: true, armedAt: "2026-08-12T12:05:00.000Z" }) });
+      }),
+      page.route("**/api/vindex/positions/disarm", async (route) => {
+        disarmRequests.push(route.request().method());
+        armed = false;
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ alreadyDisarmed: false, policy: null }) });
+      }),
+    ]);
+    await page.goto("/demo", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("button", { name: "Arm position" })).toBeEnabled();
+    await page.getByLabel("Protection drill / high sensitivity").check();
+    await page.getByRole("button", { name: "Arm position" }).click();
+    await expect(page.locator("body")).toContainText("ARMED — DRILL_HIGH_SENSITIVITY, WATCHING");
+    await expect(page.getByRole("button", { name: "Disarm" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Arm position" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Disarm" }).click();
+    await expect(page.locator("body")).toContainText("NOT ARMED");
+    await expect(page.getByRole("button", { name: "Arm position" })).toBeEnabled();
+    expect(armBodies).toEqual([{ mode: "DRILL_HIGH_SENSITIVITY" }]);
+    expect(disarmRequests).toEqual(["POST"]);
+  });
+
+  test("drill click posts once and the rail renders real persisted stages", async ({ page }) => {
+    let phase: "ready" | "matched" = "ready";
+    const drillBodies: string[] = [];
+    await Promise.all([
+      page.route("**/api/vindex/demo/status", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(phase === "matched" ? DRILL_MATCHED_STATUS : DRILL_READY_STATUS) }),
+      ),
+      page.route("**/api/vindex/demo/drill", async (route) => {
+        drillBodies.push(route.request().postData() ?? "");
+        phase = "matched";
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ runId: "run-1", started: true }) });
+      }),
+    ]);
+    await page.goto("/demo", { waitUntil: "domcontentloaded" });
+    const drillButton = page.getByRole("button", { name: "Run protection drill" });
+    await expect(drillButton).toBeEnabled();
+    await drillButton.click();
+    await expect(eventLine(page, "3/2 MATCHED")).toContainText("ACTIVE");
+    await expect(eventLine(page, "WATCHING")).toContainText("DONE");
+    await expect(eventLine(page, "THREAT EVIDENCE")).toContainText("DONE");
+    const text = await page.locator("body").innerText();
+    expect(text).not.toContain("CONFIRMING");
+    expect(text).not.toContain("SIMULATION PASSED");
+    expect(text).not.toContain("KEEPERHUB SUBMISSION");
+    expect(text).not.toContain("EXECUTING");
+    expect(text).not.toContain("TRANSACTION CONFIRMED");
+    expect(text).not.toContain("VERIFYING DESTINATION");
+    expect(text).not.toContain("PROTECTED");
+    expect(drillBodies).toEqual(["{}"]);
+  });
+
+  test("KeeperHub proof link is built from the full transaction hash", async ({ page }) => {
+    await mockStatus(page, PROOF_STATUS);
+    await page.goto("/demo", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("link", { name: "View on BaseScan Sepolia" })).toHaveAttribute("href", `https://sepolia.basescan.org/tx/${FULL_TX_HASH}`);
+    await expect(page.locator("body")).toContainText(FULL_TX_HASH);
+    await expect(page.locator("body")).toContainText("direct_evac_1");
+    await expect(page.locator("body")).toContainText("completed");
+    const text = await page.locator("body").innerText();
+    expect(text).not.toContain("PROTECTED");
+  });
+
+  test("PROTECTED is never rendered without a verified receipt event", async ({ page }) => {
+    await mockStatus(page, VERIFYING_STATUS);
+    await page.goto("/demo", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toContainText("VERIFYING DESTINATION");
+    await expect(page.getByRole("link", { name: "View Rescue Receipt" })).toHaveCount(0);
+    const text = await page.locator("body").innerText();
+    expect(text).not.toContain("PROTECTED");
+  });
+
+  test("PROTECTED renders the receipt card only with the receipt event", async ({ page }) => {
+    await mockStatus(page, PROTECTED_STATUS);
+    await page.goto("/demo", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toContainText("PROTECTED");
+    await expect(page.getByRole("link", { name: "View Rescue Receipt" })).toHaveAttribute("href", "/receipt/715c429a-fbd3-41c6-9aca-5fcc2c6a665e");
+    await expect(eventLine(page, "Verified received")).toContainText("5.000123 USDC");
+    await expect(eventLine(page, "Safe wallet")).toContainText("0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9");
+    await expect(eventLine(page, "KeeperHub execution id")).toContainText("direct_evac_1");
+    await expect(page.locator("body")).toContainText("PROTECTION DRILL — HIGH-SENSITIVITY POLICY");
+    await expect(page.locator("body")).toContainText("not evidence of an Aave exploit");
+    await expect(page.getByRole("link", { name: "View on BaseScan Sepolia" })).toHaveAttribute("href", `https://sepolia.basescan.org/tx/${FULL_TX_HASH}`);
+  });
+
+  test("FAILED run renders the truthful failure panel and never auto-fires actions", async ({ page }) => {
+    const posts: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST") posts.push(request.url());
+    });
+    await mockStatus(page, FAILED_STATUS);
+    await page.goto("/demo", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toContainText("CONSENSUS_FAILED");
+    await expect(page.locator("body")).toContainText("No further execution was triggered automatically");
+    await expect(page.getByRole("button", { name: "Prepare demo position" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Run protection drill" })).toBeDisabled();
+    expect(posts).toEqual([]);
+  });
+
+  test("refresh resumes the persisted drill stage without duplicate writes", async ({ page }) => {
+    let phase: "ready" | "matched" = "ready";
+    const drillRequests: string[] = [];
+    await Promise.all([
+      page.route("**/api/vindex/demo/status", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(phase === "matched" ? DRILL_MATCHED_STATUS : DRILL_READY_STATUS) }),
+      ),
+      page.route("**/api/vindex/demo/drill", async (route) => {
+        drillRequests.push(route.request().method());
+        phase = "matched";
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ runId: "run-1", started: true }) });
+      }),
+    ]);
+    await page.goto("/demo", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("button", { name: "Run protection drill" })).toBeEnabled();
+    await page.getByRole("button", { name: "Run protection drill" }).click();
+    await expect(eventLine(page, "3/2 MATCHED")).toContainText("ACTIVE");
+    await page.reload({ waitUntil: "domcontentloaded" });
+    // The persisted view resumes: no button click needed and no second POST.
+    await expect(eventLine(page, "3/2 MATCHED")).toContainText("ACTIVE");
+    expect(drillRequests).toEqual(["POST"]);
+  });
+
+  test("demo surface has no serious accessibility violations", async ({ page }) => {
+    await mockStatus(page, READY_TO_ARM_STATUS);
+    await page.goto("/demo", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("button", { name: "Arm position" })).toBeEnabled();
+    const results = await new AxeBuilder({ page }).analyze();
+    const serious = results.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious");
+    expect(serious).toEqual([]);
   });
 });
 });

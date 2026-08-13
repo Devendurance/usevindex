@@ -126,6 +126,10 @@ export function SetupForm({ settings = false }: { settings?: boolean }) {
       return;
     }
     setStatus(parsed);
+    // The arm confirmation is transient: when a refresh reports the policy is
+    // no longer armed (e.g. the demo status self-heal settled it), the stale
+    // "ARMED" claim must not outlive the authoritative view.
+    if (parsed.protection.armed === false) setArmConfirmation(null);
     setStatusError(null);
   }, [readStatus]);
 
