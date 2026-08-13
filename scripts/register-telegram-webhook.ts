@@ -7,7 +7,10 @@
 
 import "dotenv/config";
 
-const argUrl = process.argv.find((arg) => arg.startsWith("--url="))?.slice("--url=".length);
+const equalsFormUrl = process.argv.find((arg) => arg.startsWith("--url="))?.slice("--url=".length);
+const spaceFormIndex = process.argv.indexOf("--url");
+const spaceFormUrl = spaceFormIndex !== -1 ? process.argv[spaceFormIndex + 1] : undefined;
+const argUrl = spaceFormUrl ?? equalsFormUrl;
 const appUrl = (argUrl ?? process.env.APP_URL)?.trim();
 const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
 const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
@@ -17,7 +20,7 @@ if (!appUrl) {
   process.exit(1);
 }
 if (!botToken || !webhookSecret) {
-  console.error("TELEGRAM_BOT_TOKEN and TELEGRAM_WEBHOOK_SECRET must be set in .env.");
+  console.error("Bot credentials must be set in .env (see .env.example and docs/telegram-alerts.md).");
   process.exit(1);
 }
 if (!appUrl.startsWith("https://")) {

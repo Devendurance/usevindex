@@ -21,10 +21,18 @@ describe("telegram webhook registration script", () => {
     expect(source).toContain("/api/integrations/telegram/webhook");
     expect(source).toContain("setWebhook");
     // The token and secret are used only inside the fetch body/URL.
-    expect(source).not.toMatch(/console\.log\([^)]*token/i);
-    expect(source).not.toMatch(/console\.log\([^)]*secret/i);
-    expect(source).not.toMatch(/console\.(log|info)\(`[^`]*\$\{token\}[^`]*`/);
-    expect(source).not.toMatch(/console\.(log|info)\(`[^`]*\$\{secret\}[^`]*`/);
+    expect(source).not.toMatch(/console\.(log|info|error)\([^)]*token/i);
+    expect(source).not.toMatch(/console\.(log|info|error)\([^)]*secret/i);
+    expect(source).not.toMatch(/console\.(log|info|error)\(`[^`]*\$\{token\}[^`]*`/);
+    expect(source).not.toMatch(/console\.(log|info|error)\(`[^`]*\$\{secret\}[^`]*`/);
+  });
+
+  it("accepts both --url forms used by operators", async () => {
+    const source = await readFile("scripts/register-telegram-webhook.ts", "utf8");
+    // Space form: npm run telegram:webhook -- --url https://your-app.example
+    expect(source).toContain('"--url"');
+    // Equals form: --url=https://your-app.example
+    expect(source).toContain('"--url="');
   });
 
   it("documents the operator flow", async () => {
