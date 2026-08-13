@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Activity, RefreshCw } from "lucide-react";
 import type { PositionSnapshotModel } from "@/lib/vindex/position-service";
+import { safeBaseScanTxUrl } from "@/lib/vindex/basescan";
+import { TxLink } from "@/components/vindex/tx-link";
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -660,9 +662,11 @@ export function MonitorDashboard() {
                 </div>
                 <div className="evidence-line">
                   <span>Tx link</span>
-                  <strong className={execution.transactionLink ? "" : "empty-dash"}>
-                    {execution.transactionLink !== null ? "sepolia.basescan.org" : "—"}
-                  </strong>
+                  {execution.transactionHash !== null ? (
+                    <TxLink href={safeBaseScanTxUrl(execution.transactionHash) ?? "#"} />
+                  ) : (
+                    <strong className="empty-dash">—</strong>
+                  )}
                 </div>
                 <div className="evidence-line">
                   <span>Block</span>

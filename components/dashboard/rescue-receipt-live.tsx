@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { safeBaseScanTxUrl } from "@/lib/vindex/basescan";
+import { TxLink } from "@/components/vindex/tx-link";
 
 type ReceiptResponse = {
   id: string;
@@ -105,8 +107,8 @@ export function RescueReceiptLive({ receiptId }: { receiptId: string }) {
         <div className="evidence-line"><span>Verified received</span><strong>{fmt(r.verifiedReceived)}</strong></div>
         <div className="evidence-line"><span>Destination</span><strong>{r.destination?.full ?? "—"}</strong></div>
         <div className="evidence-line"><span>KeeperHub execution</span><strong>{r.keeperhub?.executionId ?? "—"}</strong></div>
-        <div className="evidence-line"><span>Transaction</span><strong>{r.transaction?.hash ?? "—"}</strong></div>
-        <div className="evidence-line"><span>Transaction link</span><strong>{r.transaction?.link ?? "—"}</strong></div>
+        <div className="evidence-line"><span>Transaction</span>{r.transaction?.hash ? (<TxLink href={safeBaseScanTxUrl(r.transaction.hash) ?? "#"}>{r.transaction.hash.length > 18 ? `${r.transaction.hash.slice(0, 10)}…${r.transaction.hash.slice(-6)}` : r.transaction.hash}</TxLink>) : (<strong>—</strong>)}</div>
+        <div className="evidence-line"><span>Transaction link</span>{r.transaction?.hash ? (<TxLink href={safeBaseScanTxUrl(r.transaction.hash) ?? "#"}>View on BaseScan Sepolia</TxLink>) : (<strong>—</strong>)}</div>
         <div className="evidence-line"><span>Block</span><strong>{r.transaction?.block ?? "—"}</strong></div>
         <div className="evidence-line"><span>Pre / Post balance</span><strong>{fmt(r.balances?.pre)} / {fmt(r.balances?.post)}</strong></div>
         <div className="evidence-line"><span>Verification</span><strong>{r.verification?.status ?? "—"} · block {r.verification?.blockNumber ?? "—"}</strong></div>
@@ -121,7 +123,9 @@ export function RescueReceiptLive({ receiptId }: { receiptId: string }) {
       </section>
       <div className="diagnostic-actions">
         <Link className="secondary-button" href="/monitor">Back to monitor</Link>
-        <a className="secondary-button" href={r.transaction?.link ?? "#"} target="_blank" rel="noreferrer">View on BaseScan Sepolia</a>
+        {r.transaction?.hash ? (
+          <a className="secondary-button" href={safeBaseScanTxUrl(r.transaction.hash) ?? "#"} target="_blank" rel="noopener noreferrer">View on BaseScan Sepolia</a>
+        ) : null}
       </div>
     </div></main>
   );

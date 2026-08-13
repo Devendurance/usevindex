@@ -47,3 +47,21 @@ describe("TxLink markup", () => {
     expect(source).not.toMatch(/`\[|\[https?:\/\//);
   });
 });
+
+describe("dashboard tx link integration", () => {
+  it("monitor derives the href from the full transactionHash", async () => {
+    const source = await readFile("components/dashboard/monitor-dashboard.tsx", "utf8");
+    expect(source).toContain("safeBaseScanTxUrl");
+    expect(source).toContain("TxLink");
+    // Never from the presentation string "sepolia.basescan.org" or the link field.
+    expect(source).not.toMatch(/href=.*transactionLink/);
+    expect(source).not.toMatch(/"sepolia\.basescan\.org"/);
+  });
+
+  it("the rescue receipt derives links from the verified hash", async () => {
+    const source = await readFile("components/dashboard/rescue-receipt-live.tsx", "utf8");
+    expect(source).toContain("safeBaseScanTxUrl");
+    expect(source).toContain("TxLink");
+    expect(source).not.toMatch(/href=\{[^}]*\.link/);
+  });
+});

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DRILL_EXPLANATION, DRILL_LABEL } from "@/lib/vindex/policy-templates";
+import { safeBaseScanTxUrl } from "@/lib/vindex/basescan";
+import { TxLink } from "@/components/vindex/tx-link";
 
 // Live demo surface. The server (GET /api/vindex/demo/status) is the only
 // source of truth: every stage, id, hash and amount rendered here comes from
@@ -11,7 +13,6 @@ import { DRILL_EXPLANATION, DRILL_LABEL } from "@/lib/vindex/policy-templates";
 // polling is read-only and every button action is strictly user-initiated.
 
 const POLL_INTERVAL_MS = 3000;
-const BASESCAN_TX_URL = "https://sepolia.basescan.org/tx";
 const USDC_BASE_UNITS = 1_000_000;
 
 type RunStatus =
@@ -485,15 +486,11 @@ export function DemoRunSurface() {
             </div>
             <div className="evidence-line">
               <span>Transaction hash</span>
-              <strong>{proofTxHash}</strong>
+              <TxLink href={safeBaseScanTxUrl(proofTxHash) ?? "#"}>{proofTxHash}</TxLink>
             </div>
             <div className="evidence-line">
               <span>Transaction link</span>
-              <strong>
-                <a className="text-button" href={`${BASESCAN_TX_URL}/${proofTxHash}`} target="_blank" rel="noopener noreferrer">
-                  View on BaseScan Sepolia
-                </a>
-              </strong>
+              <TxLink className="text-button" href={safeBaseScanTxUrl(proofTxHash) ?? "#"}>View on BaseScan Sepolia</TxLink>
             </div>
           </div>
         </section>
@@ -540,9 +537,7 @@ export function DemoRunSurface() {
               <span>Transaction</span>
               <strong>
                 {lastEvent?.txHash !== null && lastEvent !== null ? (
-                  <a className="text-button" href={`${BASESCAN_TX_URL}/${lastEvent.txHash}`} target="_blank" rel="noopener noreferrer">
-                    View on BaseScan Sepolia
-                  </a>
+                  <TxLink className="text-button" href={safeBaseScanTxUrl(lastEvent.txHash) ?? "#"}>View on BaseScan Sepolia</TxLink>
                 ) : (
                   "—"
                 )}
