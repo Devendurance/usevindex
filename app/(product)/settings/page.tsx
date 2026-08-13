@@ -1,5 +1,6 @@
 import { SetupForm } from "@/components/forms/setup-form";
 import { ConfigSummary } from "@/components/dashboard/config-summary";
+import { TelegramSettings } from "@/components/forms/telegram-settings";
 
 export default function SettingsPage() {
   return (
@@ -10,6 +11,7 @@ export default function SettingsPage() {
           <SetupForm settings />
           <ConfigSummary />
         </div>
+        <TelegramSettings />
       </div>
     </main>
   );
