@@ -3,9 +3,11 @@
 // 1. Authoritative lifecycle status view for GET /api/vindex/demo/status —
 //    derived from persisted rows ONLY (the DB is the source of truth, never a
 //    fake animation). The only write is the idempotent self-heal: when the
-//    last protection event is PROTECTED but a policy is still armed (the
-//    legacy M10 state), settle the lifecycle once so the first read
-//    self-corrects. No secrets are ever included in the view.
+//    last protection event is PROTECTED but a policy armed BEFORE the receipt
+//    is still armed (the legacy M10 state), settle the lifecycle once so the
+//    first read self-corrects. Policies armed AFTER the receipt are live
+//    protection sessions and are never settled by a status read. No secrets
+//    are ever included in the view.
 // 2. Process-local in-flight job guard (Map keyed by positionId). It only
 //    prevents duplicate button clicks inside one server process; the
 //    demo_runs partial unique index on (position_id) is the cross-process
@@ -615,8 +617,10 @@ const EMPTY_CURRENT_POSITION: DemoCurrentPositionView = {
 
 /**
  * Authoritative lifecycle status view. Read-only except the idempotent
- * self-heal (armed policy after PROTECTED -> settle once). Never throws for
- * RPC/KeeperHub unavailability — the view degrades to persisted data.
+ * self-heal (a policy armed BEFORE a PROTECTED receipt settles once; a
+ * policy armed after the receipt is a live protection session and is left
+ * untouched). Never throws for RPC/KeeperHub unavailability — the view
+ * degrades to persisted data.
  */
 export const getDemoLifecycleStatus = async (
   env: VindexEnv,
@@ -686,11 +690,18 @@ export const getDemoLifecycleStatus = async (
 
   // Self-heal: legacy armed-after-PROTECTED state (the M10 live DB) corrects
   // itself once on first read; settleCompletedProtection is idempotent. The
-  // view reflects the settled (disarmed) state, never the stale armed one.
+  // settle is scoped by policy age: only a policy armed BEFORE the receipt's
+  // completion may be settled. A policy armed AFTER the receipt is a fresh
+  // protection session (the operator's re-arm before run 2, or the drill's
+  // own arm -> prepare window) and must survive status reads untouched.
   let protection = initialProtection;
-  if (protectedEvent !== null && protection.armed) {
-    await settleCompletedProtection(db, positionId, now);
-    protection = await protectionView(db, positionId);
+  if (protectedEvent !== null && protection.armed && protection.armedAt !== null) {
+    const receiptTime = Date.parse(protectedEvent.completedAt ?? "");
+    const armedTime = Date.parse(protection.armedAt);
+    if (!Number.isNaN(receiptTime) && !Number.isNaN(armedTime) && armedTime < receiptTime) {
+      await settleCompletedProtection(db, positionId, now);
+      protection = await protectionView(db, positionId);
+    }
   }
 
   const [activeRun, currentPosition, drillProgress] = await Promise.all([
@@ -704,14 +715,19 @@ export const getDemoLifecycleStatus = async (
   const inFlightJob = demoJobTypeLabel(inFlightKind);
   const positionLive = currentPosition.live && currentPosition.exists;
   const runInProgress = runHasInProgress(run);
+  // A CREATED run that never persisted a funding execution is a crash-stuck
+  // row: no broadcast ever happened and the prepare route adopts/resumes the
+  // same row with identical idempotency keys, so the UI may safely re-trigger
+  // prepare. A CREATED run WITH a funding execution id is genuinely in flight.
+  const staleCreatedRun = run !== null && run.status === "CREATED" && run.fundingExecutionId === null;
 
   const reasons: string[] = [];
   if (inFlightKind !== null) reasons.push(`A demo ${inFlightKind} job is already running.`);
   if (!safeWalletConfigured) reasons.push("Safe wallet is not configured.");
   if (!positionLive) reasons.push("The demo position is not live (or could not be read).");
-  if (runInProgress) reasons.push(`A demo run is already in progress (${run?.status ?? "unknown"}).`);
+  if (runInProgress && !staleCreatedRun) reasons.push(`A demo run is already in progress (${run?.status ?? "unknown"}).`);
 
-  const readyToPrepare = !runInProgress && inFlightKind === null;
+  const readyToPrepare = (!runInProgress || staleCreatedRun) && inFlightKind === null;
   const readyToArm = positionLive && safeWalletConfigured && !protection.armed;
 
   let readyToRunDrill = false;

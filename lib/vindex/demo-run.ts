@@ -1083,6 +1083,12 @@ const buildProof = async (
     .orderBy(desc(auditEvents.createdAt))
     .limit(60);
   const sequence = events.map((e) => e.eventType).reverse();
+  // DEMO_STAGE_VERIFIED / M10_STAGE_VERIFIED audit details carry the owning
+  // run's 8-char id prefix (runId). Scope the stage lookup to THIS run so a
+  // later run's proof never picks up an earlier run's stage hashes (the
+  // oldest-match .find() below would otherwise surface run 1's hashes on
+  // run 2's proof).
+  const runPrefix = run.id.slice(0, 8);
   const stageVerified = events
     .filter((e) => e.eventType === stageVerifiedEventType)
     .reverse()
@@ -1093,7 +1099,8 @@ const buildProof = async (
       } catch {
         return {};
       }
-    });
+    })
+    .filter((d) => d.runId === runPrefix);
 
   const stageTx = (stage: string) => {
     const entry = stageVerified.find((d) => d.stage === stage);

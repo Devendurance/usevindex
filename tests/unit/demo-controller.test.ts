@@ -548,10 +548,12 @@ describe("status view — protection event, position, protection", () => {
     const run = await seedRun("OBSERVING");
     const { decision } = await seedDecision(run.id);
     const execution = await seedExecution(decision.id, "PROTECTED", { txHash, keeperhubExecutionId: "kh_withdraw_1" });
-    const receipt = await seedReceipt(execution.id);
-    await db.update(demoRuns).set({ status: "PROTECTED", rescueReceiptId: receipt.id, completedAt: NOW() }).where(eq(demoRuns.id, run.id));
-    // Legacy M10 state: the drill policy is still armed after PROTECTED.
+    // Legacy M10 state: the drill policy was armed BEFORE the protection
+    // receipt — the only case the self-heal may settle. Both timestamps are
+    // explicit so the policy-age check is deterministic.
+    const receipt = await seedReceipt(execution.id, { createdAt: new Date(NOW().getTime() + 60_000) });
     await seedPolicy({ isArmed: true, armedAt: NOW() });
+    await db.update(demoRuns).set({ status: "PROTECTED", rescueReceiptId: receipt.id, completedAt: NOW() }).where(eq(demoRuns.id, run.id));
 
     const first = await statusOf();
     expect(first.lastProtectionEvent?.status).toBe("PROTECTED");
@@ -565,6 +567,60 @@ describe("status view — protection event, position, protection", () => {
     // Historical evidence is preserved.
     expect(await db.select().from(rescueReceipts)).toHaveLength(1);
     expect(await db.select().from(executions)).toHaveLength(1);
+  });
+
+  it("a policy armed AFTER a PROTECTED receipt is a fresh protection session and survives status reads", async () => {
+    // Run 1 completed PROTECTED: the receipt lives forever.
+    const txHash = `0x${"ab".repeat(32)}`;
+    const run = await seedRun("OBSERVING");
+    const { decision } = await seedDecision(run.id);
+    const execution = await seedExecution(decision.id, "PROTECTED", { txHash, keeperhubExecutionId: "kh_withdraw_1" });
+    const receipt = await seedReceipt(execution.id, { createdAt: NOW() });
+    await db.update(demoRuns).set({ status: "PROTECTED", rescueReceiptId: receipt.id, completedAt: NOW() }).where(eq(demoRuns.id, run.id));
+    await db.delete(demoRuns); // PROTECTED runs never surface as activeRun
+
+    // The operator re-arms (STANDARD baseline for run 2) after the receipt.
+    const armedAt = new Date(receipt.createdAt.getTime() + 60_000);
+    await seedPolicy({ isArmed: true, armedAt });
+
+    const view = await statusOf();
+    expect(view.lastProtectionEvent?.status).toBe("PROTECTED");
+    expect(view.protection.armed).toBe(true); // settle must NOT run
+    expect(view.protection.armedAt).toBe(armedAt.toISOString());
+    const armedPolicies = await db.select().from(protectionPolicies).where(eq(protectionPolicies.isArmed, true));
+    expect(armedPolicies).toHaveLength(1);
+    expect(armedPolicies[0]?.armedAt).toEqual(armedAt);
+
+    // A second read stays armed too — the re-armed baseline persists.
+    const again = await statusOf();
+    expect(again.protection.armed).toBe(true);
+  });
+
+  it("a status read during an active drill never settles the drill policy", async () => {
+    // Run 1 completed PROTECTED (receipt persists), run 2 is mid-drill.
+    const txHash = `0x${"ab".repeat(32)}`;
+    const run1 = await seedRun("OBSERVING");
+    const { decision } = await seedDecision(run1.id);
+    const execution = await seedExecution(decision.id, "PROTECTED", { txHash, keeperhubExecutionId: "kh_withdraw_1" });
+    const receipt = await seedReceipt(execution.id, { createdAt: NOW() });
+    await db.update(demoRuns).set({ status: "PROTECTED", rescueReceiptId: receipt.id, completedAt: NOW() }).where(eq(demoRuns.id, run1.id));
+
+    // Run 2: active drill with its DRILL policy armed in the arm->prepare
+    // window — AFTER the run 1 receipt.
+    await seedRun("POSITION_CREATED");
+    const armedAt = new Date(receipt.createdAt.getTime() + 30_000);
+    await seedPolicy({ isArmed: true, armedAt });
+
+    const view = await statusOf();
+    expect(view.activeRun?.runId).not.toBeNull();
+    expect(view.activeRun?.status).toBe("POSITION_CREATED");
+    expect(view.lastProtectionEvent?.status).toBe("PROTECTED");
+    expect(view.protection.armed).toBe(true); // the drill arm must survive
+    const armedPolicies = await db.select().from(protectionPolicies).where(eq(protectionPolicies.isArmed, true));
+    expect(armedPolicies).toHaveLength(1);
+    // The run 1 decision stays resolved/historical — nothing was re-settled.
+    const decisionRow = (await db.select().from(threatDecisions).where(eq(threatDecisions.id, decision.id)))[0];
+    expect(decisionRow?.state).toBe("CONFIRMING");
   });
 
   it("currentPosition reflects the live chain read", async () => {
@@ -587,7 +643,9 @@ describe("status view — validation flags", () => {
   it("readyToPrepare only when no in-progress run", async () => {
     expect((await statusOf()).validation.readyToPrepare).toBe(true);
 
-    await seedRun("CREATED");
+    // A CREATED run that already persisted its funding execution id is really
+    // in flight — prepare must stay blocked.
+    await seedRun("CREATED", { fundingExecutionId: "kh_mint_1" });
     const during = await statusOf();
     expect(during.validation.readyToPrepare).toBe(false);
     expect(during.validation.reasons).toContain("A demo run is already in progress (CREATED).");
@@ -598,6 +656,23 @@ describe("status view — validation flags", () => {
     expect(afterFailure.validation.readyToPrepare).toBe(true);
     expect(afterFailure.activeRun?.errorCode).toBe("SIMULATION_FAILED");
     expect(afterFailure.activeRun?.status).toBe("FAILED");
+  });
+
+  it("a crash-stuck CREATED run without a persisted funding execution is resumable via prepare", async () => {
+    // CREATED with no funding execution id: the process died before any
+    // broadcast; the prepare route adopts/resumes the same row with identical
+    // idempotency keys, so the UI may safely re-trigger prepare.
+    await seedRun("CREATED");
+    const resumable = await statusOf();
+    expect(resumable.validation.readyToPrepare).toBe(true);
+    expect(resumable.validation.reasons).not.toContain("A demo run is already in progress (CREATED).");
+
+    // CREATED with a persisted funding execution id: genuinely in flight.
+    await db.delete(demoRuns);
+    await seedRun("CREATED", { fundingExecutionId: "kh_mint_1" });
+    const blocked = await statusOf();
+    expect(blocked.validation.readyToPrepare).toBe(false);
+    expect(blocked.validation.reasons).toContain("A demo run is already in progress (CREATED).");
   });
 
   it("readyToArm only when position live + safe wallet configured + not armed", async () => {

@@ -16,7 +16,7 @@ import {
   threatDecisions,
   verificationChecks,
 } from "../../db/schema";
-import { runDemoDrill } from "../../lib/vindex/demo-run";
+import { prepareDemoPosition, runDemoDrill } from "../../lib/vindex/demo-run";
 import type { VindexEnv } from "../../lib/vindex/env";
 import { MAX_UINT256 } from "../../lib/vindex/aave-registry";
 import { armPolicy, disarmPolicy, evaluateProtectionPolicy, getArmedPolicy, settleCompletedProtection } from "../../lib/vindex/policy-service";
@@ -517,5 +517,80 @@ describe("runDemoDrill", () => {
     expect(historicalRow?.rescueReceiptId).toBe("00000000-0000-4000-8000-000000000099");
     const freshReceipt = receipts.find((r) => r.executionId === view.executionId);
     expect(freshReceipt?.id).toBe(view.receiptId);
+  });
+
+  it.skipIf(!dbAvailable)("a second run's proof stage transactions are scoped to the second run", async () => {
+    // One fake KeeperHub across both prepares so stage execution ids are
+    // globally unique (kh_mint_1..3 for run 1, kh_mint_5..7 for run 2);
+    // each drill gets its own fake configured with its withdraw tx hash.
+    const keeperHub = createFakeKeeperHub();
+
+    // Run 1: prepare (persists DEMO_STAGE_VERIFIED for run 1) + drill.
+    const prep1 = await prepareDemoPosition({
+      env: ENV,
+      db,
+      keeperHubClient: keeperHub.client,
+      publicClient: createFakeRpc(freshChainState()),
+      now: NOW,
+    });
+    await seedSignals();
+    const drillState1 = freshChainState({ walletAUsdc: BigInt(5000123) });
+    const withdrawTxHash1 = `0x${"cd".repeat(32)}`;
+    drillState1.withdrawTxHash = withdrawTxHash1;
+    const drill1 = await runDemoDrill({
+      env: ENV,
+      db,
+      runId: prep1.runId,
+      keeperHubClient: createFakeKeeperHub({ withdrawTxHash: withdrawTxHash1 }).client,
+      publicClient: createFakeRpc(drillState1),
+      now: NOW,
+    });
+    expect(drill1.status).toBe("PROTECTED");
+
+    // Run 2 on the same position: prepare + drill to PROTECTED.
+    await seedSignals();
+    const prep2 = await prepareDemoPosition({
+      env: ENV,
+      db,
+      keeperHubClient: keeperHub.client,
+      publicClient: createFakeRpc(freshChainState()),
+      now: NOW,
+    });
+    expect(prep2.runId).not.toBe(prep1.runId);
+    const drillState2 = freshChainState({ walletAUsdc: BigInt(5000123) });
+    const withdrawTxHash2 = `0x${"ef".repeat(32)}`;
+    drillState2.withdrawTxHash = withdrawTxHash2;
+    const drill2 = await runDemoDrill({
+      env: ENV,
+      db,
+      runId: prep2.runId,
+      keeperHubClient: createFakeKeeperHub({ withdrawTxHash: withdrawTxHash2 }).client,
+      publicClient: createFakeRpc(drillState2),
+      now: NOW,
+    });
+    expect(drill2.status).toBe("PROTECTED");
+
+    // The proof's stage transactions are run 2's — not the oldest DEMO_
+    // STAGE_VERIFIED entries on record (which belong to run 1).
+    expect(drill2.proof.funding?.executionId).toBe(prep2.fundingExecutionId);
+    expect(drill2.proof.approval?.executionId).toBe(prep2.approvalExecutionId);
+    expect(drill2.proof.supply?.executionId).toBe(prep2.supplyExecutionId);
+    expect(drill2.proof.funding?.transactionHash).not.toBe(drill1.proof.funding?.transactionHash);
+    expect(drill2.proof.approval?.transactionHash).not.toBe(drill1.proof.approval?.transactionHash);
+    expect(drill2.proof.supply?.transactionHash).not.toBe(drill1.proof.supply?.transactionHash);
+
+    // And they match the hashes persisted in run 2's own stage audits.
+    const stageHashFor = async (runId: string, stage: string): Promise<string | null> => {
+      const rows = await db.select().from(auditEvents).where(eq(auditEvents.eventType, "DEMO_STAGE_VERIFIED"));
+      const entry = rows
+        .map((e) => JSON.parse(e.detailsJson) as Record<string, unknown>)
+        .find((d) => d.runId === runId.slice(0, 8) && d.stage === stage);
+      return typeof entry?.transactionHash === "string" ? entry.transactionHash : null;
+    };
+    const proofKeys = { fund: "funding", approve: "approval", supply: "supply" } as const;
+    for (const [stage, key] of Object.entries(proofKeys) as Array<[string, "funding" | "approval" | "supply"]>) {
+      expect(drill2.proof[key]?.transactionHash).toBe(await stageHashFor(prep2.runId, stage));
+      expect(drill2.proof[key]?.transactionHash).not.toBe(await stageHashFor(prep1.runId, stage));
+    }
   });
 });
