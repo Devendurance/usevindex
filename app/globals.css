@@ -1017,6 +1017,36 @@ p {
   text-align: right;
 }
 
+.matched-family-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.matched-family-row {
+  display: grid;
+  gap: 5px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.matched-family-row:last-child {
+  border-bottom: none;
+}
+
+.matched-family-row__title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.matched-family-row__reason {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .tx-link {
   color: var(--ink);
   font-weight: 700;

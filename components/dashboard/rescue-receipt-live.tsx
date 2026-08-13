@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { safeBaseScanTxUrl } from "@/lib/vindex/basescan";
 import { TxLink } from "@/components/vindex/tx-link";
+import { MatchedFamilyList } from "@/components/vindex/matched-family-list";
 
 type ReceiptResponse = {
   id: string;
@@ -117,9 +118,14 @@ export function RescueReceiptLive({ receiptId }: { receiptId: string }) {
       <section className="outline-panel route-card">
         <p className="data-label">TRIGGER</p>
         <p className="muted">{r.trigger?.consensus ?? "—"}</p>
-        {r.trigger?.families?.map((family) => (
-          <p className="muted" key={family.family}>{family.family}: {family.reason}</p>
-        ))}
+        {r.trigger?.families !== undefined && r.trigger.families.length > 0 && (
+          <MatchedFamilyList
+            families={r.trigger.families.map((family) => ({
+              family: family.family ?? "UNKNOWN",
+              reason: family.reason ?? "",
+            }))}
+          />
+        )}
       </section>
       <div className="diagnostic-actions">
         <Link className="secondary-button" href="/monitor">Back to monitor</Link>

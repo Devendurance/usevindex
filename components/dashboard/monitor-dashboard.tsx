@@ -6,6 +6,8 @@ import { Activity, RefreshCw } from "lucide-react";
 import type { PositionSnapshotModel } from "@/lib/vindex/position-service";
 import { safeBaseScanTxUrl } from "@/lib/vindex/basescan";
 import { TxLink } from "@/components/vindex/tx-link";
+import { MatchedFamilyList } from "@/components/vindex/matched-family-list";
+import { FAMILY_METRIC_LABEL } from "@/lib/signal-family-labels";
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -109,12 +111,6 @@ type LatestSignalsResponse = {
     observedAt: string;
     metadata: { formatted?: string; label?: string; owner?: string };
   }>;
-};
-
-const FAMILY_METRIC_LABEL: Record<string, string> = {
-  ORACLE_PRICE_STATE: "Oracle price state",
-  AAVE_RESERVE_STATE: "Aave reserve state",
-  POSITION_STATE: "Position state",
 };
 
 type DecisionView = {
@@ -515,14 +511,12 @@ export function MonitorDashboard() {
             {decision === null || decision.matchedFamilies.length === 0 ? (
               <p className="form-note">No matched families.</p>
             ) : (
-              <ul className="muted">
-                {decision.matchedFamilies.map((family) => (
-                  <li key={family.family}>
-                    <strong>{family.family}</strong>
-                    <span>{family.reason}</span>
-                  </li>
-                ))}
-              </ul>
+              <MatchedFamilyList
+                families={decision.matchedFamilies.map((family) => ({
+                  family: family.family,
+                  reason: family.reason,
+                }))}
+              />
             )}
           </div>
         </div>
