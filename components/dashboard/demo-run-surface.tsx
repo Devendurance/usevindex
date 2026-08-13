@@ -62,10 +62,15 @@ const STAGE_LABELS: Record<Exclude<DrillStage, "MATCHED">, string> = {
   PROTECTED: "PROTECTED",
 };
 
-// MATCHED carries the real persisted counts ("3/2 MATCHED"); every other
-// label is the fixed uppercase stage name from the task contract.
-const drillStageLabel = (stage: DrillStage, matchedCount: number, requiredSignals: number | null): string =>
-  stage === "MATCHED" ? `${matchedCount}/${requiredSignals ?? "?"} MATCHED` : STAGE_LABELS[stage];
+// MATCHED carries the real persisted counts ("3/2 MATCHED") when the policy
+// requirement is known; the terminal PROTECTED view has no persisted counts,
+// so the plain stage label is rendered instead of a fabricated "0/?".
+const drillStageLabel = (stage: DrillStage, matchedCount: number, requiredSignals: number | null): string => {
+  if (stage === "MATCHED") {
+    return requiredSignals !== null ? `${matchedCount}/${requiredSignals} MATCHED` : "MATCHED";
+  }
+  return STAGE_LABELS[stage];
+};
 
 // Mirror of GET /api/vindex/demo/status (DemoLifecycleStatusView). Only the
 // fields rendered by this component are typed; the server view is the
@@ -98,6 +103,8 @@ type DemoStatusView = {
     txHash: string | null;
     keeperhubExecutionId: string | null;
     verifiedAmount: string | null;
+    expectedAmount: string | null;
+    withdrawnAmount: string | null;
     safeWallet: string | null;
     destination: string | null;
     completedAt: string | null;
@@ -505,15 +512,21 @@ export function DemoRunSurface() {
           <div className="route-card">
             <div className="evidence-line">
               <span>Expected</span>
-              <strong className="empty-dash">—</strong>
+              <strong className={lastEvent !== null && lastEvent.expectedAmount !== null ? "" : "empty-dash"}>
+                {lastEvent !== null && lastEvent.expectedAmount !== null ? `${formatPositionAmount(lastEvent.expectedAmount)} USDC` : "—"}
+              </strong>
             </div>
             <div className="evidence-line">
               <span>Withdrawn</span>
-              <strong className="empty-dash">—</strong>
+              <strong className={lastEvent !== null && lastEvent.withdrawnAmount !== null ? "" : "empty-dash"}>
+                {lastEvent !== null && lastEvent.withdrawnAmount !== null ? `${formatPositionAmount(lastEvent.withdrawnAmount)} USDC` : "—"}
+              </strong>
             </div>
             <div className="evidence-line">
               <span>Verified received</span>
-              <strong>{lastEvent?.verifiedAmount !== null && lastEvent !== null ? `${formatPositionAmount(lastEvent.verifiedAmount ?? "0")} USDC` : "—"}</strong>
+              <strong className={lastEvent !== null && lastEvent.verifiedAmount !== null ? "" : "empty-dash"}>
+                {lastEvent !== null && lastEvent.verifiedAmount !== null ? `${formatPositionAmount(lastEvent.verifiedAmount)} USDC` : "—"}
+              </strong>
             </div>
             <div className="evidence-line">
               <span>Safe wallet</span>

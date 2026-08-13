@@ -1436,7 +1436,10 @@ test.describe("D1 live demo surface", () => {
       decisionId: "d2",
       evacuationExecutionId: "e7",
       transactionHashes: { fund: null, approve: null, supply: null, evacuation: FULL_TX_HASH },
-      transactionLinks: { fund: null, approve: null, supply: null, evacuation: `https://sepolia.basescan.org/tx/${FULL_TX_HASH}` },
+      // Deliberately a TRUNCATED link: the href assertion below can only pass
+      // if the component rebuilds the link from the full hash — using this
+      // server-provided link (or truncating the hash) must fail the test.
+      transactionLinks: { fund: null, approve: null, supply: null, evacuation: "https://sepolia.basescan.org/tx/0x14e84855" },
       keeperhubExecutionId: "direct_evac_1",
       lastKeeperHubStatus: "completed",
     }),
@@ -1467,7 +1470,12 @@ test.describe("D1 live demo surface", () => {
     executionId: "e8",
     txHash: FULL_TX_HASH,
     keeperhubExecutionId: "direct_evac_1",
+    // Distinct values so the card rows prove each amount is rendered from its
+    // own field (expected/withdrawn parsed from the receipt, verified from
+    // the receipt row) rather than one value being copied everywhere.
     verifiedAmount: "5000123",
+    expectedAmount: "5000123",
+    withdrawnAmount: "5000077",
     safeWallet: "0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9",
     destination: "0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9",
     completedAt: "2026-08-12T21:03:41.000Z",
@@ -1629,12 +1637,18 @@ test.describe("D1 live demo surface", () => {
     await page.goto("/demo", { waitUntil: "domcontentloaded" });
     await expect(page.locator("body")).toContainText("PROTECTED");
     await expect(page.getByRole("link", { name: "View Rescue Receipt" })).toHaveAttribute("href", "/receipt/715c429a-fbd3-41c6-9aca-5fcc2c6a665e");
+    await expect(eventLine(page, "Expected")).toContainText("5.000123 USDC");
+    await expect(eventLine(page, "Withdrawn")).toContainText("5.000077 USDC");
     await expect(eventLine(page, "Verified received")).toContainText("5.000123 USDC");
     await expect(eventLine(page, "Safe wallet")).toContainText("0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9");
     await expect(eventLine(page, "KeeperHub execution id")).toContainText("direct_evac_1");
     await expect(page.locator("body")).toContainText("PROTECTION DRILL — HIGH-SENSITIVITY POLICY");
     await expect(page.locator("body")).toContainText("not evidence of an Aave exploit");
     await expect(page.getByRole("link", { name: "View on BaseScan Sepolia" })).toHaveAttribute("href", `https://sepolia.basescan.org/tx/${FULL_TX_HASH}`);
+    // The terminal PROTECTED view has no persisted match counts: the MATCHED
+    // rail row must render the plain stage label, never a fabricated "0/?".
+    const text = await page.locator("body").innerText();
+    expect(text).not.toMatch(/0\/\?/);
   });
 
   test("FAILED run renders the truthful failure panel and never auto-fires actions", async ({ page }) => {

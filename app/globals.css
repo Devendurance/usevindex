@@ -1587,8 +1587,7 @@ p {
   .proof-row,
   .route-grid-3,
   .route-grid-2,
-  .scope-grid,
-  .demo-sequence {
+  .scope-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1737,11 +1736,6 @@ p {
 
   .setup-route-preview__sequence p {
     font-size: 0.6rem;
-  }
-
-  .demo-step + .demo-step {
-    border-top: 0;
-    border-left: 1px solid var(--ink);
   }
 }
 

@@ -242,6 +242,8 @@ export type DemoProtectionEventView = {
   txHash: string | null;
   keeperhubExecutionId: string | null;
   verifiedAmount: string | null;
+  expectedAmount: string | null;
+  withdrawnAmount: string | null;
   safeWallet: string | null;
   destination: string | null;
   completedAt: string | null;
@@ -403,6 +405,21 @@ const latestProtectionEvent = async (
     .limit(1);
   const receipt = rows[0];
   if (receipt === undefined) return null;
+
+  // buildReceiptJson persists expectedWithdraw (simulated return value) and
+  // withdrawn (actual onchain withdrawal) on the receipt row. Surface them
+  // next to verifiedAmount so the demo UI can show the full amount set;
+  // a malformed/unparseable receiptJson degrades the two fields to null.
+  let expectedAmount: string | null = null;
+  let withdrawnAmount: string | null = null;
+  try {
+    const details = JSON.parse(receipt.receiptJson) as Record<string, unknown>;
+    if (typeof details.expectedWithdraw === "string") expectedAmount = details.expectedWithdraw;
+    if (typeof details.withdrawn === "string") withdrawnAmount = details.withdrawn;
+  } catch {
+    // keep both null — the view never fabricates amounts
+  }
+
   const execution: ExecutionRow | null = (await db.select().from(executions).where(eq(executions.id, receipt.executionId)).limit(1))[0] ?? null;
   return {
     status: "PROTECTED",
@@ -411,6 +428,8 @@ const latestProtectionEvent = async (
     txHash: execution?.txHash ?? receipt.txHash,
     keeperhubExecutionId: execution?.keeperhubExecutionId ?? receipt.keeperhubExecutionId,
     verifiedAmount: receipt.verifiedAmount,
+    expectedAmount,
+    withdrawnAmount,
     safeWallet: execution?.safeWallet ?? receipt.destination,
     destination: receipt.destination,
     completedAt: receipt.createdAt.toISOString(),

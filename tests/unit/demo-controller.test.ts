@@ -505,7 +505,13 @@ describe("status view — protection event, position, protection", () => {
       prePositionAmount: "5000123",
       preSafeWalletBalance: "0",
     });
-    const receipt = await seedReceipt(execution.id, { txHash, keeperhubExecutionId: "kh_withdraw_1" });
+    // buildReceiptJson persists expectedWithdraw + withdrawn on the receipt
+    // row; the view must surface them next to verifiedAmount.
+    const receipt = await seedReceipt(execution.id, {
+      txHash,
+      keeperhubExecutionId: "kh_withdraw_1",
+      receiptJson: JSON.stringify({ expectedWithdraw: "5000123", withdrawn: "5000077", verifiedReceived: "5000123" }),
+    });
     await db.update(demoRuns).set({ status: "PROTECTED", rescueReceiptId: receipt.id, completedAt: NOW() }).where(eq(demoRuns.id, run.id));
     await db.delete(demoRuns); // PROTECTED runs never surface as activeRun
 
@@ -517,10 +523,24 @@ describe("status view — protection event, position, protection", () => {
       txHash,
       keeperhubExecutionId: "kh_withdraw_1",
       verifiedAmount: "5000123",
+      expectedAmount: "5000123",
+      withdrawnAmount: "5000077",
       safeWallet: SAFE_WALLET,
       destination: SAFE_WALLET,
     });
     expect(view.lastProtectionEvent?.completedAt).toBe(receipt.createdAt.toISOString());
+  });
+
+  it("lastProtectionEvent degrades expected/withdrawn to null when receiptJson is unparseable", async () => {
+    const run = await seedRun("OBSERVING");
+    const { decision } = await seedDecision(run.id);
+    const execution = await seedExecution(decision.id, "PROTECTED", { txHash: `0x${"ab".repeat(32)}` });
+    await seedReceipt(execution.id, { receiptJson: "{not-json" });
+
+    const view = await statusOf();
+    expect(view.lastProtectionEvent?.verifiedAmount).toBe("5000123");
+    expect(view.lastProtectionEvent?.expectedAmount).toBeNull();
+    expect(view.lastProtectionEvent?.withdrawnAmount).toBeNull();
   });
 
   it("self-heal: armed policy + PROTECTED event settles once and reports disarmed", async () => {
