@@ -21,8 +21,7 @@ import type { VindexEnv } from "./env";
 import { VindexApiError } from "./errors";
 import { readCanonicalChainState, type CanonicalReadClient } from "./public-client";
 import { createFailoverPublicClient } from "./rpc-failover";
-import { getArmedPolicy } from "./policy-service";
-import { getAuditEvents } from "./policy-service";
+import { getArmedPolicy, getAuditEvents, settleCompletedProtection } from "./policy-service";
 import { normalizeTransactionLink } from "./validation";
 import { canonicalPositionId } from "./position-service";
 import { validateSafeWallet } from "./safe-wallet";
@@ -632,6 +631,11 @@ export const verifyEvacuationDestination = async (
 
   await writeAudit(db, positionId, "RESCUE_RECEIPT_CREATED", { executionId, receiptId: receipt.id, txHash: receipt.txHash }, execution.decisionId, receipt.txHash);
   await writeAudit(db, positionId, "POSITION_PROTECTED", { executionId, receiptId: receipt.id, verifiedAmount: delta.toString(), verifiedAt: checkAt.toISOString() }, execution.decisionId, receipt.txHash);
+
+  // The position is protected; settle the lifecycle so the next protection
+  // session starts clean. Idempotent: disarms the armed policy (resolving any
+  // active decision) and appends POLICY_DISARMED/DECISION_RESOLVED audits.
+  await settleCompletedProtection(db, positionId, now);
 
   return {
     outcome: "VERIFIED",

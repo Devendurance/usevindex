@@ -159,6 +159,15 @@ const writeAudit = async (
   });
 };
 
+const decisionDetails = (decision: ThreatDecisionRow) => ({
+  id: decision.id,
+  state: decision.state,
+  matchedCount: decision.matchedCount,
+  windowStartedAt: decision.windowStartedAt.toISOString(),
+  confirmedAt: decision.confirmedAt?.toISOString() ?? null,
+  expiresAt: decision.expiresAt?.toISOString() ?? null,
+});
+
 export const getArmedPolicy = async (
   db: VindexDb,
   positionId: string,
@@ -305,6 +314,42 @@ export const disarmPolicy = async (
 
   await writeAudit(db, positionId, "POLICY_DISARMED", { policyId: armed.id, mode: armed.mode });
   return { alreadyDisarmed: false, policy: rowToPolicyView({ ...armed, isArmed: false, disarmedAt }) };
+};
+
+// Post-PROTECTED lifecycle settlement: once a protection event is completed
+// (execution status PROTECTED + rescue receipt), the armed policy is disarmed
+// so a future protection session never inherits an armed policy. Idempotent
+// and additive-only: no historical row is ever deleted or updated; the only
+// writes are the disarm transition plus appended audit events.
+export const settleCompletedProtection = async (
+  db: VindexDb,
+  positionId: string,
+  now: () => Date = () => new Date(),
+): Promise<{ alreadyDisarmed: boolean; policy: PolicyView | null }> => {
+  const armed = await getArmedPolicy(db, positionId);
+  if (armed === null) {
+    return { alreadyDisarmed: true, policy: null };
+  }
+  const activeDecisions = await db
+    .select()
+    .from(threatDecisions)
+    .where(
+      and(
+        eq(threatDecisions.policyId, armed.id),
+        sql`${threatDecisions.state} in ('ELEVATED', 'CONFIRMING')`,
+      ),
+    );
+  const result = await disarmPolicy(db, positionId, now);
+  for (const decision of activeDecisions) {
+    await writeAudit(
+      db,
+      positionId,
+      "DECISION_RESOLVED",
+      { decisionId: decision.id, ...decisionDetails(decision) },
+      decision.id,
+    );
+  }
+  return result;
 };
 
 type EligibleObservation = {
@@ -553,15 +598,6 @@ export const evaluateProtectionPolicy = async (
     .orderBy(desc(threatDecisions.createdAt))
     .limit(1);
   const latestDecision = decisionRows[0] ?? null;
-
-  const decisionDetails = (decision: ThreatDecisionRow) => ({
-    id: decision.id,
-    state: decision.state,
-    matchedCount: decision.matchedCount,
-    windowStartedAt: decision.windowStartedAt.toISOString(),
-    confirmedAt: decision.confirmedAt?.toISOString() ?? null,
-    expiresAt: decision.expiresAt?.toISOString() ?? null,
-  });
 
   // Idempotent: an already-confirmed, unexpired CONFIRMING decision returns as-is.
   if (

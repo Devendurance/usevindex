@@ -15,5 +15,9 @@ export default defineConfig({
   test: {
     include: ["tests/unit/**/*.test.ts"],
     environment: "node",
+    // The DB-backed suites share one Postgres test database and one position
+    // id; parallel file workers race each other's seeds/arms, so run files
+    // sequentially (tests within a file stay independent).
+    fileParallelism: false,
   },
 });

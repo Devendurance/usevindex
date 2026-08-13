@@ -36,7 +36,10 @@ export async function getTestDb() {
   try {
     await maintenance.unsafe(`CREATE DATABASE ${testDatabaseName}`);
   } catch (error) {
-    if (!(error instanceof Error) || !error.message.includes("already exists")) {
+    // Concurrent workers race to create the test database: the winner gets
+    // "already exists", the losers hit the pg_database unique constraint.
+    const message = error instanceof Error ? error.message : "";
+    if (!message.includes("already exists") && !message.includes("pg_database_datname_index")) {
       await maintenance.end();
       throw error;
     }
