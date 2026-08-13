@@ -1017,6 +1017,19 @@ p {
   text-align: right;
 }
 
+.tx-link {
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+.tx-link:hover {
+  opacity: 0.7;
+}
+
 .empty-evidence-row {
   display: grid;
   grid-template-columns: 18px 1fr auto;
