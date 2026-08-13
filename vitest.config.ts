@@ -10,6 +10,9 @@ export default defineConfig({
       "server-only": fileURLToPath(
         new URL("./tests/unit/helpers/server-only-stub.ts", import.meta.url),
       ),
+      // Match tsconfig `@/*` so route-handler tests can import "@/db" and
+      // "@/lib/..." the same way the Next.js app does.
+      "@": fileURLToPath(new URL("./", import.meta.url)),
     },
   },
   test: {
