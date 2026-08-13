@@ -201,6 +201,12 @@ const seedM7Execution = async (
 };
 
 beforeAll(async () => {
+  // Deterministic WITHDRAWAL_COMPLETE "SENT" rows: the alert hook records
+  // SERVER_NOT_CONFIGURED when the optional Telegram env is absent, so stub
+  // the three vars explicitly instead of depending on .env content.
+  vi.stubEnv("TELEGRAM_BOT_TOKEN", "123:abc");
+  vi.stubEnv("TELEGRAM_BOT_USERNAME", "VindexAlertsBot");
+  vi.stubEnv("TELEGRAM_WEBHOOK_SECRET", "secret");
   if (!dbAvailable) return;
   db = await getTestDb();
   await db.delete(rescueReceipts);
@@ -218,6 +224,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  vi.unstubAllEnvs();
   await closeTestDb();
 });
 

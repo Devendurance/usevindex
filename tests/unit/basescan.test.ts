@@ -22,7 +22,7 @@ describe("buildBaseScanTxUrl", () => {
     expect(() => buildBaseScanTxUrl("0x1234")).toThrow();
     const upperHex = `0x${HASH.slice(2).toUpperCase()}`;
     expect(() => buildBaseScanTxUrl(upperHex)).not.toThrow(); // hex letters may be upper-case
-    expect(() => buildBaseScanTxUrl(`${HASH}ff`)).toThrow(); // 65 hex chars
+    expect(() => buildBaseScanTxUrl(`${HASH}ff`)).toThrow(); // 66 hex chars (HASH + 2)
     expect(() => buildBaseScanTxUrl("https://sepolia.basescan.org/tx/abc")).toThrow();
     expect(() => buildBaseScanTxUrl("")).toThrow();
   });
@@ -53,7 +53,10 @@ describe("dashboard tx link integration", () => {
     const source = await readFile("components/dashboard/monitor-dashboard.tsx", "utf8");
     expect(source).toContain("safeBaseScanTxUrl");
     expect(source).toContain("TxLink");
+    // Positive: every transaction anchor derives its href through the helper.
+    expect(source).toMatch(/href=\{safeBaseScanTxUrl\(/);
     // Never from the presentation string "sepolia.basescan.org" or the link field.
+    expect(source).not.toMatch(/sepolia\.basescan\.org/);
     expect(source).not.toMatch(/href=.*transactionLink/);
     expect(source).not.toMatch(/"sepolia\.basescan\.org"/);
   });
@@ -62,6 +65,8 @@ describe("dashboard tx link integration", () => {
     const source = await readFile("components/dashboard/rescue-receipt-live.tsx", "utf8");
     expect(source).toContain("safeBaseScanTxUrl");
     expect(source).toContain("TxLink");
+    expect(source).toMatch(/href=\{safeBaseScanTxUrl\(/);
+    expect(source).not.toMatch(/sepolia\.basescan\.org/);
     expect(source).not.toMatch(/href=\{[^}]*\.link/);
   });
 });

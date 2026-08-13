@@ -1127,13 +1127,19 @@ test.describe("M7 evacuation execution", () => {
     reRead: { outcome: "passed", blockNumber: "45384010", reason: null },
   };
 
+  // P1 tx-link change: the monitor anchor's href is rebuilt from the FULL
+  // hash via safeBaseScanTxUrl, while the visible label stays the default
+  // "Tx link" (components/vindex/tx-link.tsx). The fixture's server-provided
+  // transactionLink stays deliberately TRUNCATED so this test proves the href
+  // never comes from the link field.
+  const MONITOR_TX_HASH = "0x7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a";
   const executionOf = (outcome: string, overrides: Record<string, unknown> = {}) => ({
     outcome,
     executionId: "e7",
     decisionId: "d2",
     keeperhubExecutionId: "direct_evac_1",
     status: "completed",
-    transactionHash: outcome === "EXECUTED_VERIFYING_DESTINATION" ? "0x7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a" : null,
+    transactionHash: outcome === "EXECUTED_VERIFYING_DESTINATION" ? MONITOR_TX_HASH : null,
     transactionLink: outcome === "EXECUTED_VERIFYING_DESTINATION" ? "https://sepolia.basescan.org/tx/0x7a" : null,
     sponsored: true,
     actualWithdrawAmount: outcome === "EXECUTED_VERIFYING_DESTINATION" ? "5000077" : null,
@@ -1173,7 +1179,9 @@ test.describe("M7 evacuation execution", () => {
     await page.goto("/monitor", { waitUntil: "domcontentloaded" });
     await expect(page.locator("body")).toContainText("EXECUTION CONFIRMED — VERIFYING DESTINATION");
     await expect(page.locator("body")).toContainText("direct_evac_1");
-    await expect(page.locator("body")).toContainText("sepolia.basescan.org");
+    // The canonical URL lives in the anchor's href; the visible label is the
+    // default "Tx link".
+    await expect(page.getByRole("link", { name: "Tx link" })).toHaveAttribute("href", `https://sepolia.basescan.org/tx/${MONITOR_TX_HASH}`);
     await expect(page.locator("body")).toContainText("5.000077 USDC (test)");
     const text = await page.locator("body").innerText();
     expect(text).not.toContain("PROTECTED");
@@ -1324,7 +1332,9 @@ test.describe("M8 destination verification + receipt", () => {
     await expect(page.locator("body")).toContainText("not evidence of an Aave exploit");
     await expect(page.locator("body")).toContainText("Protection Drill / High Sensitivity");
     await expect(page.locator("body")).toContainText("5.000123 USDC (test)");
-    await expect(page.locator("body")).toContainText("0x14e84855f63b09831fc7e23ccc31f009acf6f73fb5eb483e745d0954d2777cc5");
+    // P1 tx-link change: the Transaction row shows the truncated hash label,
+    // so the full hash is asserted on the anchor's canonical href instead.
+    await expect(page.getByRole("link", { name: "0x14e84855…777cc5" })).toHaveAttribute("href", "https://sepolia.basescan.org/tx/0x14e84855f63b09831fc7e23ccc31f009acf6f73fb5eb483e745d0954d2777cc5");
     await expect(page.locator("body")).toContainText("View on BaseScan Sepolia");
     await expect(page.locator("body")).toContainText("PROTECTED");
     const text = await page.locator("body").innerText();

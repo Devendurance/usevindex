@@ -18,9 +18,26 @@ import {
 import { hashConnectToken } from "../../lib/vindex/telegram-connect";
 import { closeTestDb, getTestDb } from "./helpers/test-db";
 
-const { WALLET } = vi.hoisted(() => ({
-  WALLET: "0x675638ddbbf8b70b906d68e3485da72c6c63d130",
-}));
+const { WALLET, keeperHubWallet } = vi.hoisted(() => {
+  // Mutable so individual tests can simulate a KeeperHub org WITHOUT a wallet
+  // (hasWallet:false → the routes' 422 KEEPERHUB_UNAVAILABLE path).
+  const keeperHubWallet: {
+    hasWallet: boolean;
+    walletAddress: string | null;
+    walletId: string | null;
+    isActive: boolean | null;
+    invalidAddress: boolean;
+    error: string | null;
+  } = {
+    hasWallet: true,
+    walletAddress: "0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+    walletId: "wal_test",
+    isActive: true,
+    invalidAddress: false,
+    error: null,
+  };
+  return { WALLET: "0x675638ddbbf8b70b906d68e3485da72c6c63d130", keeperHubWallet };
+});
 
 vi.mock("../../lib/telegram/client", () => ({
   sendTelegramMessage: vi.fn(async () => ({ ok: true, messageId: "7", errorCode: null })),
@@ -31,18 +48,11 @@ vi.mock("../../lib/telegram/client", () => ({
 // tests never hit the KeeperHub network.
 vi.mock("@/lib/vindex/keeperhub", () => ({
   createKeeperHubClient: () => ({
-    getOrganizationWallet: async () => ({
-      hasWallet: true,
-      walletAddress: WALLET,
-      walletId: "wal_test",
-      isActive: true,
-      invalidAddress: false,
-      error: null,
-    }),
+    getOrganizationWallet: async () => keeperHubWallet,
   }),
 }));
 
-import { PATCH } from "../../app/api/vindex/telegram/route";
+import { DELETE, GET, PATCH } from "../../app/api/vindex/telegram/route";
 import { POST as connectPOST } from "../../app/api/vindex/telegram/connect/route";
 import { POST as testPOST } from "../../app/api/vindex/telegram/test/route";
 
@@ -214,6 +224,60 @@ describe("telegram routes", () => {
     vi.stubEnv("KEEPERHUB_API_KEY", "");
     try {
       const response = await testPOST();
+      expect(response.status).toBe(503);
+      expect((await response.json()).error).toBe("SERVER_NOT_CONFIGURED");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("connect returns 422 KEEPERHUB_UNAVAILABLE without an org wallet", async () => {
+    stubRouteEnv();
+    const original = { ...keeperHubWallet };
+    keeperHubWallet.hasWallet = false;
+    keeperHubWallet.walletAddress = null;
+    try {
+      const response = await connectPOST();
+      expect(response.status).toBe(422);
+      expect((await response.json()).error).toBe("KEEPERHUB_UNAVAILABLE");
+    } finally {
+      Object.assign(keeperHubWallet, original);
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("test returns 422 KEEPERHUB_UNAVAILABLE without an org wallet", async () => {
+    stubRouteEnv();
+    const original = { ...keeperHubWallet };
+    keeperHubWallet.hasWallet = false;
+    keeperHubWallet.walletAddress = null;
+    try {
+      const response = await testPOST();
+      expect(response.status).toBe(422);
+      expect((await response.json()).error).toBe("KEEPERHUB_UNAVAILABLE");
+    } finally {
+      Object.assign(keeperHubWallet, original);
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("GET returns 503 SERVER_NOT_CONFIGURED without required env", async () => {
+    vi.stubEnv("BASE_SEPOLIA_RPC_URL", "");
+    vi.stubEnv("KEEPERHUB_API_KEY", "");
+    try {
+      const response = await GET();
+      expect(response.status).toBe(503);
+      expect((await response.json()).error).toBe("SERVER_NOT_CONFIGURED");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("DELETE returns 503 SERVER_NOT_CONFIGURED without required env", async () => {
+    vi.stubEnv("BASE_SEPOLIA_RPC_URL", "");
+    vi.stubEnv("KEEPERHUB_API_KEY", "");
+    try {
+      const response = await DELETE();
       expect(response.status).toBe(503);
       expect((await response.json()).error).toBe("SERVER_NOT_CONFIGURED");
     } finally {

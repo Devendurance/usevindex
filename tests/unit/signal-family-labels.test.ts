@@ -40,5 +40,7 @@ describe("MatchedFamilyList markup", () => {
     expect(monitor).not.toMatch(/<ul className="muted">[\s\S]*matchedFamilies\.map/);
     const receipt = await readFile("components/dashboard/rescue-receipt-live.tsx", "utf8");
     expect(receipt).toContain("<MatchedFamilyList");
+    // Never the pre-P1 inline row markup that rendered families as muted lines.
+    expect(receipt).not.toMatch(/<p className="muted" key=\{family\.family\}>/);
   });
 });
