@@ -20,11 +20,13 @@ export async function POST(request: Request) {
     return Response.json({ error: "SERVER_NOT_CONFIGURED", message: "Server not configured." }, { status: 503 });
   }
 
-  let body: unknown;
+  // The demo surface accepts no fields; an empty POST body (no JSON at all) is
+  // equivalent to {} — only unknown fields are rejected below.
+  let body: unknown = {};
   try {
     body = await request.json();
   } catch {
-    return Response.json({ error: "BAD_REQUEST", message: "Request body must be valid JSON." }, { status: 400 });
+    body = {};
   }
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
     return Response.json({ error: "BAD_REQUEST", message: "Request body must be a JSON object." }, { status: 400 });

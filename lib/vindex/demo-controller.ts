@@ -250,7 +250,6 @@ export type DemoProtectionEventView = {
 export type DemoCurrentPositionView = {
   exists: boolean;
   positionAmountBaseUnits: string;
-  aTokenBalance: string;
   underlyingWalletBalance: string;
   live: boolean;
   observedAt: string | null;
@@ -431,11 +430,10 @@ const currentPositionView = async (
   if (publicClient !== null) {
     try {
       const live = await getAaveUsdcPosition(publicClient, wallet);
-      const aTokenBalance = live.aTokenBalanceBaseUnits.toString();
+      const positionAmountBaseUnits = live.aTokenBalanceBaseUnits.toString();
       return {
         exists: live.aTokenBalanceBaseUnits > BigInt(0),
-        positionAmountBaseUnits: aTokenBalance,
-        aTokenBalance,
+        positionAmountBaseUnits,
         underlyingWalletBalance: live.underlyingBalanceBaseUnits.toString(),
         live: true,
         observedAt: now().toISOString(),
@@ -449,7 +447,6 @@ const currentPositionView = async (
     return {
       exists: false,
       positionAmountBaseUnits: "0",
-      aTokenBalance: "0",
       underlyingWalletBalance: "0",
       live: false,
       observedAt: null,
@@ -459,7 +456,6 @@ const currentPositionView = async (
   return {
     exists: BigInt(positionAmountBaseUnits) > BigInt(0),
     positionAmountBaseUnits,
-    aTokenBalance: positionAmountBaseUnits,
     underlyingWalletBalance: snapshot.latestUnderlyingWalletBalance,
     live: false,
     observedAt: snapshot.observedAt.toISOString(),
@@ -593,7 +589,6 @@ const competingExecutionExists = async (db: VindexDb, decisionId: string): Promi
 const EMPTY_CURRENT_POSITION: DemoCurrentPositionView = {
   exists: false,
   positionAmountBaseUnits: "0",
-  aTokenBalance: "0",
   underlyingWalletBalance: "0",
   live: false,
   observedAt: null,
@@ -753,23 +748,31 @@ const resolvePositionFromEnv = async (
   return { wallet: orgWallet.walletAddress, positionId: canonicalPositionId(orgWallet.walletAddress) };
 };
 
-const readLivePosition = async (
-  publicClient: CanonicalReadClient,
-  wallet: string,
-): Promise<{ aTokenBalanceBaseUnits: bigint; underlyingBalanceBaseUnits: bigint; blockNumber: bigint }> => {
+// Error mapping shared by every route-level live read — the position preflight
+// AND the safe-wallet balance read: WrongChainError -> WRONG_CHAIN (502), any
+// other RPC/transport failure -> RPC_ALL_UNAVAILABLE (503). Never leaks a raw
+// error or the generic LIVE_READ_FAILED mapping to the route.
+const readLiveOrMapError = async <T>(read: () => Promise<T>): Promise<T> => {
   try {
-    const live = await getAaveUsdcPosition(publicClient, wallet);
-    return {
-      aTokenBalanceBaseUnits: live.aTokenBalanceBaseUnits,
-      underlyingBalanceBaseUnits: live.underlyingBalanceBaseUnits,
-      blockNumber: live.latestBlockNumber,
-    };
+    return await read();
   } catch (error) {
     if (error instanceof WrongChainError) {
       throw new VindexApiError("WRONG_CHAIN", "The connected chain is not Base Sepolia (84532).", 502);
     }
     throw new VindexApiError("RPC_ALL_UNAVAILABLE", "All Base Sepolia RPC endpoints are unavailable.", 503);
   }
+};
+
+const readLivePosition = async (
+  publicClient: CanonicalReadClient,
+  wallet: string,
+): Promise<{ aTokenBalanceBaseUnits: bigint; underlyingBalanceBaseUnits: bigint; blockNumber: bigint }> => {
+  const live = await readLiveOrMapError(() => getAaveUsdcPosition(publicClient, wallet));
+  return {
+    aTokenBalanceBaseUnits: live.aTokenBalanceBaseUnits,
+    underlyingBalanceBaseUnits: live.underlyingBalanceBaseUnits,
+    blockNumber: live.latestBlockNumber,
+  };
 };
 
 type RouteOptions = {
@@ -804,7 +807,8 @@ export const prepareDemoRoute = async (
   if (config.safeWallet === null) {
     throw new VindexApiError("SAFE_WALLET_NOT_CONFIGURED", "Safe wallet is not configured.", 422);
   }
-  const walletValidation = validateSafeWallet(config.safeWallet, wallet);
+  const safeWallet = config.safeWallet; // narrowed to string below the null check
+  const walletValidation = validateSafeWallet(safeWallet, wallet);
   if (!walletValidation.valid) {
     throw new VindexApiError("INVALID_SAFE_WALLET", walletValidation.reason, 409);
   }
@@ -827,7 +831,7 @@ export const prepareDemoRoute = async (
     if (live.aTokenBalanceBaseUnits > BigInt(0)) {
       throw new VindexApiError("POSITION_ZERO", `Existing aUSDC position (${live.aTokenBalanceBaseUnits}) found before a demo run — diagnose instead of creating another position.`, 409);
     }
-    const safePosition = await getAaveUsdcPosition(rpc, config.safeWallet);
+    const safePosition = await readLiveOrMapError(() => getAaveUsdcPosition(rpc, safeWallet));
     const inserted = await db
       .insert(demoRuns)
       .values({

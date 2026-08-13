@@ -12,6 +12,7 @@ import {
   auditEvents,
   demoRuns,
   executions,
+  protectedPositions,
   protectionPolicies,
   rescueReceipts,
   signalObservations,
@@ -19,6 +20,7 @@ import {
   verificationChecks,
   vindexConfig,
 } from "../../db/schema";
+import { WrongChainError } from "../../lib/vindex/chain";
 import {
   demoJobTypeLabel,
   getDemoLifecycleStatus,
@@ -31,6 +33,8 @@ import {
   type DemoLifecycleStatusView,
 } from "../../lib/vindex/demo-controller";
 import type { VindexEnv } from "../../lib/vindex/env";
+import type { KeeperHubClient } from "../../lib/vindex/keeperhub";
+import type { FailoverCanonicalClient } from "../../lib/vindex/rpc-failover";
 import { CONFIG_SINGLETON_ID } from "../../db/schema";
 import { MAX_UINT256 } from "../../lib/vindex/aave-registry";
 import { DRILL_LABEL } from "../../lib/vindex/policy-templates";
@@ -43,6 +47,8 @@ import {
   POOL,
   POSITION_ID,
   SAFE_WALLET,
+  USDC,
+  WALLET,
   createFakeKeeperHub,
   createFakeRpc,
   freshChainState,
@@ -197,6 +203,24 @@ const drillChainState = (): { state: DemoChainState; withdrawTxHash: string } =>
   return { state, withdrawTxHash };
 };
 
+// RPC fake that throws the given error from readContract — either for every
+// call or only for the safe-wallet owner (leaving the position preflight read
+// intact), to exercise the outage fallback paths.
+const rpcThatThrows = (error: Error, onlyForSafeWallet = false): FailoverCanonicalClient => {
+  const base = createFakeRpc(freshChainState());
+  return {
+    ...base,
+    readContract: async (...args: unknown[]) => {
+      const call = args[0] as { functionName?: string; args?: unknown[] } | undefined;
+      const owner = String((call?.args ?? [])[0] ?? "").toLowerCase();
+      if (!onlyForSafeWallet || (call?.functionName === "balanceOf" && owner === SAFE_WALLET.toLowerCase())) {
+        throw error;
+      }
+      return (base.readContract as (...broad: unknown[]) => Promise<unknown>)(...args);
+    },
+  } as unknown as FailoverCanonicalClient;
+};
+
 const statusOf = (state: DemoChainState = freshChainState({ walletAUsdc: BigInt(5000123) }), holdKind: "prepare" | "drill" | null = null): Promise<DemoLifecycleStatusView> => {
   const held = holdKind !== null && tryAcquireDemoJob(POSITION_ID, holdKind);
   return getDemoLifecycleStatus(ENV, db, {
@@ -218,7 +242,15 @@ const pollUntil = async (predicate: () => Promise<boolean>, timeoutMs = 15_000):
 };
 
 beforeAll(async () => {
-  if (!dbAvailable) return;
+  if (!dbAvailable) {
+    // This suite's deliverable evidence lives in real-DB assertions. Skipping
+    // silently would report green while verifying nothing — fail loudly so a
+    // missing DATABASE_URL can never masquerade as a passing suite.
+    throw new Error(
+      "DATABASE_URL is not set — this suite requires a real Postgres database. " +
+        "Set DATABASE_URL (or TEST_DATABASE_URL, see tests/unit/helpers/test-db.ts) to run it.",
+    );
+  }
   db = await getTestDb();
   await db.delete(verificationChecks);
   await db.delete(rescueReceipts);
@@ -227,12 +259,12 @@ beforeAll(async () => {
   await db.delete(protectionPolicies);
   await db.delete(auditEvents);
   await db.delete(signalObservations);
+  await db.delete(protectedPositions);
   await db.delete(demoRuns);
   await setSafeWalletConfig(db, SAFE_WALLET);
 });
 
 beforeEach(async () => {
-  if (!dbAvailable) return;
   await db.delete(verificationChecks);
   await db.delete(rescueReceipts);
   await db.delete(executions);
@@ -240,6 +272,7 @@ beforeEach(async () => {
   await db.delete(protectionPolicies);
   await db.delete(auditEvents);
   await db.delete(signalObservations);
+  await db.delete(protectedPositions);
   await db.delete(demoRuns);
   releaseDemoJob(POSITION_ID);
 });
@@ -264,7 +297,7 @@ describe("in-flight job guard", () => {
     expect(demoJobTypeLabel(null)).toBeNull();
   });
 
-  it.skipIf(!dbAvailable)("a second prepare while in-flight never starts a second job", async () => {
+  it("a second prepare while in-flight never starts a second job", async () => {
     const run = await seedRun("CREATED");
     const kh = createFakeKeeperHub();
     const state = freshChainState();
@@ -291,7 +324,7 @@ describe("in-flight job guard", () => {
     expect(after?.status).toBe("POSITION_CREATED");
   });
 
-  it.skipIf(!dbAvailable)("a second drill while in-flight never starts a second drill", async () => {
+  it("a second drill while in-flight never starts a second drill", async () => {
     const run = await seedRun("POSITION_CREATED");
     await seedSignals();
     const { state } = drillChainState();
@@ -310,7 +343,7 @@ describe("in-flight job guard", () => {
 });
 
 describe("status view — drill progress stage derivation", () => {
-  it.skipIf(!dbAvailable)("WATCHING when no run or decision exists", async () => {
+  it("WATCHING when no run or decision exists", async () => {
     const view = await statusOf();
     expect(view.activeRun).toBeNull();
     expect(view.drillProgress.stage).toBe("WATCHING");
@@ -320,7 +353,7 @@ describe("status view — drill progress stage derivation", () => {
     expect(view.drillProgress.drillLabel).toBeNull();
   });
 
-  it.skipIf(!dbAvailable)("THREAT_EVIDENCE when signals were collected but no decision exists", async () => {
+  it("THREAT_EVIDENCE when signals were collected but no decision exists", async () => {
     await seedRun("OBSERVING");
     await seedSignals();
     const view = await statusOf();
@@ -328,7 +361,7 @@ describe("status view — drill progress stage derivation", () => {
     expect(view.drillProgress.drillLabel).toBeNull();
   });
 
-  it.skipIf(!dbAvailable)("THREAT_EVIDENCE for a partial ELEVATED decision (1/2)", async () => {
+  it("THREAT_EVIDENCE for a partial ELEVATED decision (1/2)", async () => {
     const run = await seedRun("OBSERVING");
     await seedDecision(run.id, { state: "ELEVATED", matchedCount: 1, confirmedAt: null });
     const view = await statusOf();
@@ -338,7 +371,7 @@ describe("status view — drill progress stage derivation", () => {
     expect(view.drillProgress.drillLabel).toBe(DRILL_LABEL);
   });
 
-  it.skipIf(!dbAvailable)("MATCHED N/M for an ELEVATED decision with the full match set (3/2)", async () => {
+  it("MATCHED N/M for an ELEVATED decision with the full match set (3/2)", async () => {
     const run = await seedRun("OBSERVING");
     await seedDecision(run.id, { state: "ELEVATED", matchedCount: 3, confirmedAt: null });
     const view = await statusOf();
@@ -347,7 +380,7 @@ describe("status view — drill progress stage derivation", () => {
     expect(view.drillProgress.requiredSignals).toBe(2);
   });
 
-  it.skipIf(!dbAvailable)("CONFIRMING for a confirmed decision", async () => {
+  it("CONFIRMING for a confirmed decision", async () => {
     const run = await seedRun("OBSERVING");
     await seedDecision(run.id);
     const view = await statusOf();
@@ -356,7 +389,7 @@ describe("status view — drill progress stage derivation", () => {
     expect(view.activeRun?.policyId).toBeTruthy();
   });
 
-  it.skipIf(!dbAvailable)("SIMULATION_PASSED from the prepared execution row", async () => {
+  it("SIMULATION_PASSED from the prepared execution row", async () => {
     const run = await seedRun("OBSERVING");
     const { decision } = await seedDecision(run.id);
     const execution = await seedExecution(decision.id, "SIMULATION_PASSED");
@@ -365,7 +398,7 @@ describe("status view — drill progress stage derivation", () => {
     expect(view.drillProgress.stage).toBe("SIMULATION_PASSED");
   });
 
-  it.skipIf(!dbAvailable)("KEEPERHUB_SUBMISSION for SUBMISSION_PENDING / SUBMISSION_UNKNOWN / EXECUTION_PENDING with a KeeperHub id", async () => {
+  it("KEEPERHUB_SUBMISSION for SUBMISSION_PENDING / SUBMISSION_UNKNOWN / EXECUTION_PENDING with a KeeperHub id", async () => {
     for (const [status, keeperhubExecutionId] of [
       ["SUBMISSION_PENDING", "kh_withdraw_1"],
       ["SUBMISSION_UNKNOWN", "kh_withdraw_1"],
@@ -386,7 +419,7 @@ describe("status view — drill progress stage derivation", () => {
     }
   });
 
-  it.skipIf(!dbAvailable)("EXECUTING for EXECUTION_PENDING without a resolvable KeeperHub id", async () => {
+  it("EXECUTING for EXECUTION_PENDING without a resolvable KeeperHub id", async () => {
     const run = await seedRun("OBSERVING");
     const { decision } = await seedDecision(run.id);
     const execution = await seedExecution(decision.id, "EXECUTION_PENDING", { keeperhubExecutionId: null });
@@ -395,7 +428,7 @@ describe("status view — drill progress stage derivation", () => {
     expect(view.drillProgress.stage).toBe("EXECUTING");
   });
 
-  it.skipIf(!dbAvailable)("TRANSACTION_CONFIRMED for EXECUTED_VERIFYING_DESTINATION with a tx hash before verification", async () => {
+  it("TRANSACTION_CONFIRMED for EXECUTED_VERIFYING_DESTINATION with a tx hash before verification", async () => {
     const txHash = `0x${"ab".repeat(32)}`;
     const run = await seedRun("OBSERVING");
     const { decision } = await seedDecision(run.id);
@@ -412,7 +445,7 @@ describe("status view — drill progress stage derivation", () => {
     expect(view.activeRun?.transactionLinks.evacuation).toBe(`https://sepolia.basescan.org/tx/${txHash}`);
   });
 
-  it.skipIf(!dbAvailable)("VERIFYING_DESTINATION once a verification check row exists", async () => {
+  it("VERIFYING_DESTINATION once a verification check row exists", async () => {
     const run = await seedRun("OBSERVING");
     const { decision } = await seedDecision(run.id);
     const execution = await seedExecution(decision.id, "EXECUTED_VERIFYING_DESTINATION", {
@@ -436,7 +469,7 @@ describe("status view — drill progress stage derivation", () => {
     expect(view.drillProgress.stage).toBe("VERIFYING_DESTINATION");
   });
 
-  it.skipIf(!dbAvailable)("PROTECTED only after a receipt row exists — never from execution status alone", async () => {
+  it("PROTECTED only after a receipt row exists — never from execution status alone", async () => {
     // Execution claims PROTECTED but no receipt row: must NOT be PROTECTED.
     const run = await seedRun("OBSERVING");
     const { decision } = await seedDecision(run.id);
@@ -457,12 +490,12 @@ describe("status view — drill progress stage derivation", () => {
 });
 
 describe("status view — protection event, position, protection", () => {
-  it.skipIf(!dbAvailable)("lastProtectionEvent is null when no receipt exists", async () => {
+  it("lastProtectionEvent is null when no receipt exists", async () => {
     const view = await statusOf();
     expect(view.lastProtectionEvent).toBeNull();
   });
 
-  it.skipIf(!dbAvailable)("lastProtectionEvent shows the latest receipt and its execution", async () => {
+  it("lastProtectionEvent shows the latest receipt and its execution", async () => {
     const txHash = `0x${"ab".repeat(32)}`;
     const run = await seedRun("OBSERVING");
     const { decision } = await seedDecision(run.id);
@@ -490,7 +523,7 @@ describe("status view — protection event, position, protection", () => {
     expect(view.lastProtectionEvent?.completedAt).toBe(receipt.createdAt.toISOString());
   });
 
-  it.skipIf(!dbAvailable)("self-heal: armed policy + PROTECTED event settles once and reports disarmed", async () => {
+  it("self-heal: armed policy + PROTECTED event settles once and reports disarmed", async () => {
     const txHash = `0x${"ab".repeat(32)}`;
     const run = await seedRun("OBSERVING");
     const { decision } = await seedDecision(run.id);
@@ -514,12 +547,11 @@ describe("status view — protection event, position, protection", () => {
     expect(await db.select().from(executions)).toHaveLength(1);
   });
 
-  it.skipIf(!dbAvailable)("currentPosition reflects the live chain read", async () => {
+  it("currentPosition reflects the live chain read", async () => {
     const view = await statusOf(freshChainState({ walletAUsdc: BigInt(5000123), walletUsdc: BigInt(999) }));
     expect(view.currentPosition).toMatchObject({
       exists: true,
       positionAmountBaseUnits: "5000123",
-      aTokenBalance: "5000123",
       underlyingWalletBalance: "999",
       live: true,
     });
@@ -527,12 +559,12 @@ describe("status view — protection event, position, protection", () => {
 
     const drained = await statusOf(freshChainState());
     expect(drained.currentPosition.exists).toBe(false);
-    expect(drained.currentPosition.aTokenBalance).toBe("0");
+    expect(drained.currentPosition.positionAmountBaseUnits).toBe("0");
   });
 });
 
 describe("status view — validation flags", () => {
-  it.skipIf(!dbAvailable)("readyToPrepare only when no in-progress run", async () => {
+  it("readyToPrepare only when no in-progress run", async () => {
     expect((await statusOf()).validation.readyToPrepare).toBe(true);
 
     await seedRun("CREATED");
@@ -548,7 +580,7 @@ describe("status view — validation flags", () => {
     expect(afterFailure.activeRun?.status).toBe("FAILED");
   });
 
-  it.skipIf(!dbAvailable)("readyToArm only when position live + safe wallet configured + not armed", async () => {
+  it("readyToArm only when position live + safe wallet configured + not armed", async () => {
     // Safe wallet configured (beforeAll), position live -> ready.
     expect((await statusOf()).validation.readyToArm).toBe(true);
 
@@ -573,7 +605,7 @@ describe("status view — validation flags", () => {
     await setSafeWalletConfig(db, SAFE_WALLET);
   });
 
-  it.skipIf(!dbAvailable)("readyToRunDrill only when live position + active run + safe wallet + no competing execution + no in-flight", async () => {
+  it("readyToRunDrill only when live position + active run + safe wallet + no competing execution + no in-flight", async () => {
     const run = await seedRun("POSITION_CREATED");
     const ready = await statusOf();
     expect(ready.validation.readyToRunDrill).toBe(true);
@@ -599,7 +631,7 @@ describe("status view — validation flags", () => {
 });
 
 describe("route guards", () => {
-  it.skipIf(!dbAvailable)("prepare route rejects when a job is already in flight", async () => {
+  it("prepare route rejects when a job is already in flight", async () => {
     tryAcquireDemoJob(POSITION_ID, "prepare");
     try {
       await expect(
@@ -615,7 +647,7 @@ describe("route guards", () => {
     expect(await db.select().from(demoRuns)).toHaveLength(0);
   });
 
-  it.skipIf(!dbAvailable)("prepare route creates a run and the background job prepares the position", async () => {
+  it("prepare route creates a run and the background job prepares the position", async () => {
     const kh = createFakeKeeperHub();
     const state = freshChainState();
     const result = await prepareDemoRoute(ENV, db, {
@@ -633,7 +665,7 @@ describe("route guards", () => {
     expect(kh.calls.execute.map((c) => c.functionName)).toEqual(["mint", "approve", "supply"]);
   });
 
-  it.skipIf(!dbAvailable)("prepare route adopts an existing active run without duplicating it", async () => {
+  it("prepare route adopts an existing active run without duplicating it", async () => {
     const existing = await seedRun("POSITION_CREATED", {
       fundingExecutionId: "kh_mint_1",
       approvalExecutionId: "kh_approve_1",
@@ -656,7 +688,7 @@ describe("route guards", () => {
     expect(kh.calls.execute).toHaveLength(0);
   });
 
-  it.skipIf(!dbAvailable)("prepare route rejects a live position that belongs to no run", async () => {
+  it("prepare route rejects a live position that belongs to no run", async () => {
     await expect(
       prepareDemoRoute(ENV, db, {
         keeperHubClient: createFakeKeeperHub().client,
@@ -667,7 +699,7 @@ describe("route guards", () => {
     expect(await db.select().from(demoRuns)).toHaveLength(0);
   });
 
-  it.skipIf(!dbAvailable)("drill route requires an active run (NO_ACTIVE_RUN)", async () => {
+  it("drill route requires an active run (NO_ACTIVE_RUN)", async () => {
     await expect(
       runDemoDrillRoute(ENV, db, {
         keeperHubClient: createFakeKeeperHub().client,
@@ -677,7 +709,7 @@ describe("route guards", () => {
     ).rejects.toMatchObject({ code: "NO_ACTIVE_RUN", status: 409 });
   });
 
-  it.skipIf(!dbAvailable)("drill route rejects when a job is already in flight", async () => {
+  it("drill route rejects when a job is already in flight", async () => {
     await seedRun("POSITION_CREATED");
     tryAcquireDemoJob(POSITION_ID, "drill");
     try {
@@ -693,7 +725,7 @@ describe("route guards", () => {
     }
   });
 
-  it.skipIf(!dbAvailable)("drill route rejects a drained position with POSITION_ZERO", async () => {
+  it("drill route rejects a drained position with POSITION_ZERO", async () => {
     await seedRun("POSITION_CREATED");
     await expect(
       runDemoDrillRoute(ENV, db, {
@@ -704,7 +736,7 @@ describe("route guards", () => {
     ).rejects.toMatchObject({ code: "POSITION_ZERO", status: 422 });
   });
 
-  it.skipIf(!dbAvailable)("drill route rejects a competing executed evacuation", async () => {
+  it("drill route rejects a competing executed evacuation", async () => {
     const run = await seedRun("POSITION_CREATED");
     const { decision } = await seedDecision(run.id);
     await seedExecution(decision.id, "EXECUTED_VERIFYING_DESTINATION", { txHash: `0x${"ab".repeat(32)}` });
@@ -717,7 +749,7 @@ describe("route guards", () => {
     ).rejects.toMatchObject({ code: "BAD_REQUEST", status: 409 });
   });
 
-  it.skipIf(!dbAvailable)("drill route runs the full drill to PROTECTED with a receipt", async () => {
+  it("drill route runs the full drill to PROTECTED with a receipt", async () => {
     const run = await seedRun("POSITION_CREATED");
     await seedSignals();
     const { state, withdrawTxHash } = drillChainState();
@@ -750,7 +782,7 @@ describe("route guards", () => {
 });
 
 describe("status view — refresh resumes from persisted state", () => {
-  it.skipIf(!dbAvailable)("mid-prepare status reflects persisted stage execution ids and tx hashes", async () => {
+  it("mid-prepare status reflects persisted stage execution ids and tx hashes", async () => {
     const kh = createFakeKeeperHub();
     const state = freshChainState();
     const result = await prepareDemoRoute(ENV, db, {
@@ -784,7 +816,7 @@ describe("status view — refresh resumes from persisted state", () => {
 });
 
 describe("status view — no secrets and full-hash links", () => {
-  it.skipIf(!dbAvailable)("the view never contains secrets", async () => {
+  it("the view never contains secrets", async () => {
     const txHash = `0x${"ab".repeat(32)}`;
     const run = await seedRun("OBSERVING");
     const { decision } = await seedDecision(run.id);
@@ -808,7 +840,7 @@ describe("status view — no secrets and full-hash links", () => {
     expect(serialized).not.toContain("kh_test_key");
   });
 
-  it.skipIf(!dbAvailable)("evacuation transaction link uses the full 66-char hash", async () => {
+  it("evacuation transaction link uses the full 66-char hash", async () => {
     const txHash = `0x${"cd".repeat(32)}`;
     expect(txHash).toHaveLength(66);
     const run = await seedRun("OBSERVING");
@@ -825,8 +857,123 @@ describe("status view — no secrets and full-hash links", () => {
   });
 });
 
+describe("outage fallbacks (zero real writes)", () => {
+  it("status view degrades truthfully to an empty view when KeeperHub is unreachable", async () => {
+    const kh = createFakeKeeperHub();
+    const downKeeperHub: KeeperHubClient = {
+      ...kh.client,
+      getOrganizationWallet: async () => {
+        throw new Error("KeeperHub transport failure");
+      },
+    };
+    // The read must resolve with a degraded view (the route then returns 200)
+    // — it must never reject into a 5xx.
+    const view = await getDemoLifecycleStatus(ENV, db, {
+      keeperHubClient: downKeeperHub,
+      publicClient: createFakeRpc(freshChainState()),
+      now: NOW,
+    });
+    expect(view.positionId).toBeNull();
+    expect(view.activeRun).toBeNull();
+    expect(view.lastProtectionEvent).toBeNull();
+    expect(view.currentPosition).toMatchObject({
+      exists: false,
+      positionAmountBaseUnits: "0",
+      underlyingWalletBalance: "0",
+      live: false,
+      observedAt: null,
+    });
+    expect(view.validation).toMatchObject({
+      readyToPrepare: false,
+      readyToArm: false,
+      readyToRunDrill: false,
+      inFlightJob: null,
+    });
+    expect(view.validation.reasons).toContain("KeeperHub organization wallet is unavailable.");
+  });
+
+  it("currentPosition falls back to the persisted snapshot when the RPC read throws", async () => {
+    await db.insert(protectedPositions).values({
+      id: POSITION_ID,
+      chainId: 84532,
+      protocol: "aave-v3",
+      poolAddress: POOL,
+      assetAddress: USDC,
+      assetSymbol: "USDC",
+      assetDecimals: 6,
+      positionTokenAddress: ATK,
+      executionWallet: WALLET,
+      safeWallet: SAFE_WALLET,
+      latestPositionAmount: "1234567",
+      latestUnderlyingWalletBalance: "888",
+      latestNativeBalanceWei: "0",
+      latestAllowance: "0",
+      latestBlockNumber: "45399000",
+      latestBlockTimestamp: NOW(),
+      observedAt: NOW(),
+    });
+
+    const view = await getDemoLifecycleStatus(ENV, db, {
+      keeperHubClient: createFakeKeeperHub().client,
+      publicClient: rpcThatThrows(new Error("RPC transport failure")),
+      now: NOW,
+    });
+    expect(view.positionId).toBe(POSITION_ID);
+    expect(view.currentPosition).toMatchObject({
+      exists: true,
+      positionAmountBaseUnits: "1234567",
+      underlyingWalletBalance: "888",
+      live: false,
+    });
+    expect(view.currentPosition.observedAt).toBe(NOW().toISOString());
+  });
+
+  it("a failing prepare job persists FAILED with errorCode and the runner never rejects", async () => {
+    const run = await seedRun("CREATED");
+    const kh = createFakeKeeperHub();
+    const failingKeeperHub: KeeperHubClient = {
+      ...kh.client,
+      executeContractCall: async () => {
+        throw new Error("KeeperHub transport failure");
+      },
+    };
+    const job = startDemoPrepare(ENV, db, run.id, {
+      keeperHubClient: failingKeeperHub,
+      publicClient: createFakeRpc(freshChainState()),
+      now: NOW,
+    });
+    // The background runner swallows the failure after persisting it — the
+    // returned promise resolves and no unhandled rejection reaches the process.
+    await expect(job).resolves.toBeUndefined();
+    const row = (await db.select().from(demoRuns).where(eq(demoRuns.id, run.id)))[0];
+    expect(row?.status).toBe("FAILED");
+    expect(row?.errorCode).toBe("SUBMISSION_UNKNOWN");
+    expect(row?.completedAt).toBeTruthy();
+  });
+
+  it("prepare route maps a safe-wallet RPC failure to RPC_ALL_UNAVAILABLE (503)", async () => {
+    await expect(
+      prepareDemoRoute(ENV, db, {
+        keeperHubClient: createFakeKeeperHub().client,
+        publicClient: rpcThatThrows(new Error("RPC transport failure"), true),
+        now: NOW,
+      }),
+    ).rejects.toMatchObject({ code: "RPC_ALL_UNAVAILABLE", status: 503 });
+  });
+
+  it("prepare route maps a wrong-chain safe-wallet read to WRONG_CHAIN (502)", async () => {
+    await expect(
+      prepareDemoRoute(ENV, db, {
+        keeperHubClient: createFakeKeeperHub().client,
+        publicClient: rpcThatThrows(new WrongChainError(84533), true),
+        now: NOW,
+      }),
+    ).rejects.toMatchObject({ code: "WRONG_CHAIN", status: 502 });
+  });
+});
+
 describe("demo_runs partial unique index (migration 0008)", () => {
-  it.skipIf(!dbAvailable)("PROTECTED and CREATED runs for the same position coexist", async () => {
+  it("PROTECTED and CREATED runs for the same position coexist", async () => {
     await seedRun("PROTECTED", { completedAt: NOW() });
     const created = await seedRun("CREATED");
     const rows = await db
@@ -838,13 +985,13 @@ describe("demo_runs partial unique index (migration 0008)", () => {
     expect(all.map((r) => r.status).sort()).toEqual(["CREATED", "PROTECTED"]);
   });
 
-  it.skipIf(!dbAvailable)("FAILED and CREATED runs for the same position coexist", async () => {
+  it("FAILED and CREATED runs for the same position coexist", async () => {
     await seedRun("FAILED", { errorCode: "SIMULATION_FAILED", completedAt: NOW() });
     const created = await seedRun("CREATED");
     expect(created.status).toBe("CREATED");
   });
 
-  it.skipIf(!dbAvailable)("two concurrent CREATED inserts for the same position — one wins", async () => {
+  it("two concurrent CREATED inserts for the same position — one wins", async () => {
     await seedRun("CREATED");
     let violated = false;
     try {
