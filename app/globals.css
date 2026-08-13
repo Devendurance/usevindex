@@ -1390,6 +1390,11 @@ p {
   margin-top: 26px;
 }
 
+.setup-state-summary {
+  margin-top: 26px;
+  padding: 6px 18px;
+}
+
 .setup-route-preview h2 {
   font-size: 1.7rem;
 }

@@ -15,6 +15,39 @@ const routes = [
   "/outcome/preview",
 ];
 
+// D1 setup fixtures — served exclusively through page.route interception so the
+// suite never performs real API writes (the demo status endpoint self-heals
+// against the live DB, so it must always be mocked when /setup is visited).
+const SETUP_CONFIG_FIXTURE = {
+  safeWallet: "0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9",
+  configured: true,
+  chainId: 84532,
+  executionWallet: "0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+  configuredAt: "2026-08-12T12:00:00.000Z",
+  updatedAt: "2026-08-12T12:00:00.000Z",
+};
+
+const setupStatusOf = (overrides: Record<string, unknown> = {}) => ({
+  positionId: "base-sepolia:aave-v3:usdc:0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+  activeRun: null,
+  lastProtectionEvent: null,
+  currentPosition: { exists: false, positionAmountBaseUnits: "0", underlyingWalletBalance: "0", live: false, observedAt: null },
+  protection: { armed: false, mode: null, policyId: null, armedAt: null },
+  drillProgress: { stage: "WATCHING", label: "Watching", matchedCount: 0, requiredSignals: null, drillLabel: null },
+  validation: { readyToPrepare: true, readyToArm: false, readyToRunDrill: false, reasons: [], inFlightJob: null },
+  ...overrides,
+});
+
+const mockSetupApi = (page: import("@playwright/test").Page, status: unknown) =>
+  Promise.all([
+    page.route("**/api/vindex/config", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SETUP_CONFIG_FIXTURE) }),
+    ),
+    page.route("**/api/vindex/demo/status", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(status) }),
+    ),
+  ]);
+
 test.describe("Vindex routes", () => {
   test.beforeEach(async ({ page }) => {
     await page.route("**/api/**", (route) => route.abort());
@@ -321,6 +354,9 @@ test.describe("Vindex routes", () => {
 
   test("setup validates locally and never submits unavailable actions", async ({ page }) => {
     await page.goto("/setup");
+    // Hydration sync: this message is only rendered client-side after the
+    // aborted status fetch, so interacting with the controlled inputs is safe.
+    await expect(page.locator("body")).toContainText("Live protection state is unavailable.");
     const wallet = page.getByLabel("Safe wallet");
     await wallet.fill("0x-invalid");
     await wallet.blur();
@@ -562,13 +598,177 @@ test.describe("M3 live dashboard", () => {
         body: JSON.stringify({ safeWallet: putBody?.safeWallet ?? null, configured: true, chainId: 84532, executionWallet: "0x675638ddbbf8b70b906d68e3485da72c6c63d130", configuredAt: "2026-08-12T12:00:00.000Z", updatedAt: "2026-08-12T12:00:00.000Z" }),
       });
     });
+    await page.route("**/api/vindex/demo/status", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(setupStatusOf()) }),
+    );
     await page.goto("/setup", { waitUntil: "domcontentloaded" });
+    // Wait for the fetched summary to render — it is "—" in SSR, so this
+    // guarantees hydration completed before interacting with the controlled
+    // inputs (typing into a pre-hydration form is reset by React hydration).
+    await expect(page.locator(".evidence-line").filter({ hasText: "CURRENT PROTECTION" })).toContainText("NOT ARMED");
     await expect(page.getByLabel("Safe wallet")).toHaveValue("");
     await page.getByLabel("Safe wallet").fill("0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9");
     await expect(page.getByRole("button", { name: "Save configuration" })).toBeEnabled();
     await page.getByRole("button", { name: "Save configuration" }).click();
     await expect(page.locator("body")).toContainText("Saved at");
     expect(putBody).toEqual({ safeWallet: "0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9" });
+});
+
+test.describe("D1 setup current state + arm", () => {
+  const POST_PROTECTED_STATUS = setupStatusOf({
+    lastProtectionEvent: {
+      status: "PROTECTED",
+      receiptId: "715c429a-fbd3-41c6-9aca-5fcc2c6a665e",
+      executionId: "e8",
+      txHash: "0x14e84855f63b09831fc7e23ccc31f009acf6f73fb5eb483e745d0954d2777cc5",
+      keeperhubExecutionId: "direct_evac_1",
+      verifiedAmount: "5000123",
+      safeWallet: "0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9",
+      destination: "0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9",
+      completedAt: "2026-08-12T21:03:41.000Z",
+    },
+    validation: { readyToPrepare: false, readyToArm: false, readyToRunDrill: false, reasons: ["The demo position is not live (or could not be read)."], inFlightJob: null },
+  });
+
+  const LIVE_POSITION = { exists: true, positionAmountBaseUnits: "5000017", underlyingWalletBalance: "0", live: true, observedAt: "2026-08-12T12:00:30.000Z" };
+
+  const READY_TO_ARM_STATUS = setupStatusOf({
+    currentPosition: LIVE_POSITION,
+    validation: { readyToPrepare: true, readyToArm: true, readyToRunDrill: false, reasons: [], inFlightJob: null },
+  });
+
+  const armedStatusOf = (mode: string) =>
+    setupStatusOf({
+      currentPosition: LIVE_POSITION,
+      protection: { armed: true, mode, policyId: mode === "STANDARD" ? "p1" : "p2", armedAt: "2026-08-12T12:05:00.000Z" },
+      validation: { readyToPrepare: false, readyToArm: false, readyToRunDrill: false, reasons: [], inFlightJob: null },
+    });
+
+  const armResponseOf = (mode: string) => ({
+    id: mode === "STANDARD" ? "p1" : "p2",
+    positionId: "base-sepolia:aave-v3:usdc:0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+    mode,
+    version: 1,
+    requiredSignals: 2,
+    correlationWindowSec: 600,
+    thresholds: {},
+    safeWalletSnapshot: "0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9",
+    isArmed: true,
+    armedAt: "2026-08-12T12:05:00.000Z",
+    disarmedAt: null,
+  });
+
+  const eventLine = (page: import("@playwright/test").Page, label: string) =>
+    page.locator(".evidence-line").filter({ hasText: label });
+
+  test("post-PROTECTED setup shows the receipt event, an empty position and NOT ARMED with the blocking reason", async ({ page }) => {
+    await mockSetupApi(page, POST_PROTECTED_STATUS);
+    await page.goto("/setup", { waitUntil: "domcontentloaded" });
+    await expect(eventLine(page, "LAST PROTECTION EVENT")).toContainText("PROTECTED");
+    await expect(page.getByRole("link", { name: "PROTECTED" })).toHaveAttribute("href", "/receipt/715c429a-fbd3-41c6-9aca-5fcc2c6a665e");
+    await expect(eventLine(page, "CURRENT POSITION")).toContainText("NONE / 0");
+    await expect(eventLine(page, "CURRENT PROTECTION")).toContainText("NOT ARMED");
+    await expect(page.getByRole("button", { name: "Arm position" })).toBeDisabled();
+    await expect(page.locator("body")).toContainText("The demo position is not live (or could not be read).");
+  });
+
+  test("a live position arms with STANDARD and reports ARMED — STANDARD, WATCHING", async ({ page }) => {
+    let armed = false;
+    const armBodies: Array<{ mode?: string }> = [];
+    await Promise.all([
+      page.route("**/api/vindex/config", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SETUP_CONFIG_FIXTURE) }),
+      ),
+      page.route("**/api/vindex/demo/status", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(armed ? armedStatusOf("STANDARD") : READY_TO_ARM_STATUS) }),
+      ),
+      page.route("**/api/vindex/positions/arm", async (route) => {
+        armBodies.push(JSON.parse(route.request().postData() ?? "{}") as { mode?: string });
+        armed = true;
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(armResponseOf("STANDARD")) });
+      }),
+    ]);
+    await page.goto("/setup", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("button", { name: "Arm position" })).toBeEnabled();
+    await expect(eventLine(page, "CURRENT POSITION")).toContainText("5.000017 USDC");
+    await page.getByRole("button", { name: "Arm position" }).click();
+    await expect(page.locator("body")).toContainText("ARMED — STANDARD, WATCHING");
+    expect(armBodies).toEqual([{ mode: "STANDARD" }]);
+  });
+
+  test("selecting DRILL_HIGH_SENSITIVITY arms with that mode", async ({ page }) => {
+    let armed = false;
+    const armBodies: Array<{ mode?: string }> = [];
+    await Promise.all([
+      page.route("**/api/vindex/config", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SETUP_CONFIG_FIXTURE) }),
+      ),
+      page.route("**/api/vindex/demo/status", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(armed ? armedStatusOf("DRILL_HIGH_SENSITIVITY") : READY_TO_ARM_STATUS) }),
+      ),
+      page.route("**/api/vindex/positions/arm", async (route) => {
+        armBodies.push(JSON.parse(route.request().postData() ?? "{}") as { mode?: string });
+        armed = true;
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(armResponseOf("DRILL_HIGH_SENSITIVITY")) });
+      }),
+    ]);
+    await page.goto("/setup", { waitUntil: "domcontentloaded" });
+    // Hydration sync — see "F. setup form persists the safe wallet via the API".
+    await expect(page.locator(".evidence-line").filter({ hasText: "CURRENT PROTECTION" })).toContainText("NOT ARMED");
+    await page.getByLabel("Protection drill / high sensitivity").check();
+    await page.getByRole("button", { name: "Arm position" }).click();
+    await expect(page.locator("body")).toContainText("ARMED — DRILL_HIGH_SENSITIVITY, WATCHING");
+    expect(armBodies).toEqual([{ mode: "DRILL_HIGH_SENSITIVITY" }]);
+  });
+
+  test("an armed fixture shows the mode, offers Disarm and disarms back to NOT ARMED", async ({ page }) => {
+    let armed = true;
+    const disarmRequests: string[] = [];
+    await Promise.all([
+      page.route("**/api/vindex/config", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SETUP_CONFIG_FIXTURE) }),
+      ),
+      page.route("**/api/vindex/demo/status", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(armed ? armedStatusOf("DRILL_HIGH_SENSITIVITY") : READY_TO_ARM_STATUS) }),
+      ),
+      page.route("**/api/vindex/positions/disarm", async (route) => {
+        disarmRequests.push(route.request().method());
+        armed = false;
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ alreadyDisarmed: false, policy: null }) });
+      }),
+    ]);
+    await page.goto("/setup", { waitUntil: "domcontentloaded" });
+    await expect(eventLine(page, "CURRENT PROTECTION")).toContainText("ARMED — DRILL_HIGH_SENSITIVITY");
+    await expect(page.locator("body")).not.toContainText("WATCHING");
+    await expect(page.getByRole("button", { name: "Disarm" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Arm position" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Disarm" }).click();
+    await expect(eventLine(page, "CURRENT PROTECTION")).toContainText("NOT ARMED");
+    await expect(page.getByRole("button", { name: "Disarm" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Arm position" })).toBeEnabled();
+    expect(disarmRequests).toEqual(["POST"]);
+  });
+
+  test("never claims a PROTECTED event without lastProtectionEvent", async ({ page }) => {
+    const NO_EVENT_STATUS = setupStatusOf({
+      activeRun: { runId: "run-1", status: "PROTECTED", errorCode: null },
+      validation: { readyToPrepare: false, readyToArm: false, readyToRunDrill: false, reasons: ["A demo run is already in progress."], inFlightJob: null },
+    });
+    await mockSetupApi(page, NO_EVENT_STATUS);
+    await page.goto("/setup", { waitUntil: "domcontentloaded" });
+    await expect(eventLine(page, "LAST PROTECTION EVENT")).toContainText("NONE");
+    await expect(page.getByRole("link", { name: "PROTECTED" })).toHaveCount(0);
+    const text = await page.locator("body").innerText();
+    expect(text).not.toContain("PROTECTED");
+  });
+
+  test("setup surfaces have no serious accessibility violations", async ({ page }) => {
+    await mockSetupApi(page, POST_PROTECTED_STATUS);
+    await page.goto("/setup", { waitUntil: "domcontentloaded" });
+    const results = await new AxeBuilder({ page }).analyze();
+    const serious = results.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious");
+    expect(serious).toEqual([]);
+  });
 });
 
 test.describe("M4 live signal evidence", () => {
