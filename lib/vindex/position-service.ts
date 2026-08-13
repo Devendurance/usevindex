@@ -20,11 +20,8 @@ import {
   isKeeperHubHealthy,
   type KeeperHubClient,
 } from "./keeperhub";
-import {
-  createCanonicalPublicClient,
-  readCanonicalChainState,
-  type CanonicalReadClient,
-} from "./public-client";
+import { readCanonicalChainState, type CanonicalReadClient } from "./public-client";
+import { createFailoverPublicClient } from "./rpc-failover";
 import { getSafeWalletConfig } from "./safe-wallet";
 import type { VindexEnv } from "./env";
 
@@ -163,7 +160,7 @@ export const refreshCurrentProtectedPosition = async (
       baseUrl: env.keeperhubApiBaseUrl,
     });
   const rpc: CanonicalReadClient =
-    options.publicClient ?? createCanonicalPublicClient(env.baseSepoliaRpcUrl);
+    options.publicClient ?? (createFailoverPublicClient(process.env) as unknown as CanonicalReadClient);
 
   // A. Chain — fail closed on wrong chain; RPC down -> stale fallback or error.
   let latestBlock: bigint;

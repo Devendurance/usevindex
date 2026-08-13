@@ -246,6 +246,11 @@ async function main(): Promise<void> {
     process.exit(1);
     return;
   }
+  if (/\]\(https?:\/\//.test(serialized)) {
+    printFail("Transaction link format", "Markdown-formatted link found in evidence");
+    process.exit(1);
+    return;
+  }
   printPass("Secret scan");
 
   mkdirSync(dirname(M8_EVIDENCE_FILE), { recursive: true });

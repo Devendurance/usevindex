@@ -16,10 +16,8 @@ import {
   refreshCurrentProtectedPosition,
   type PositionSnapshotModel,
 } from "./position-service";
-import {
-  createCanonicalPublicClient,
-  type CanonicalReadClient,
-} from "./public-client";
+import type { CanonicalReadClient } from "./public-client";
+import { createFailoverPublicClient } from "./rpc-failover";
 import type { VindexEnv } from "./env";
 
 export const SIGNAL_FAMILIES = [
@@ -232,7 +230,7 @@ export const collectLiveSignalObservations = async (
   }
 
   const rpc: CanonicalReadClient =
-    options.publicClient ?? createCanonicalPublicClient(env.baseSepoliaRpcUrl);
+    options.publicClient ?? (createFailoverPublicClient(process.env) as unknown as CanonicalReadClient);
   const {
     pool,
     aaveOracle,

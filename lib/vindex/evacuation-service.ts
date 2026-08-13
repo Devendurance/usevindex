@@ -20,11 +20,8 @@ import {
   type ContractCallSimulation,
   type KeeperHubClient,
 } from "./keeperhub";
-import {
-  createCanonicalPublicClient,
-  readCanonicalChainState,
-  type CanonicalReadClient,
-} from "./public-client";
+import { readCanonicalChainState, type CanonicalReadClient } from "./public-client";
+import { createFailoverPublicClient } from "./rpc-failover";
 import { getArmedPolicy, getAuditEvents as policyAudit } from "./policy-service";
 import { canonicalPositionId } from "./position-service";
 import { getSafeWalletConfig, validateSafeWallet } from "./safe-wallet";
@@ -172,7 +169,7 @@ export const prepareEvacuation = async (
     options.keeperHubClient ??
     createKeeperHubClient({ apiKey: env.keeperhubApiKey, baseUrl: env.keeperhubApiBaseUrl });
   const rpc: CanonicalReadClient =
-    options.publicClient ?? createCanonicalPublicClient(env.baseSepoliaRpcUrl);
+    options.publicClient ?? (createFailoverPublicClient(process.env) as unknown as CanonicalReadClient);
 
   const decisionRows = await db
     .select()

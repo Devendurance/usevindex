@@ -1,0 +1,13 @@
+{
+  "stage": "approve",
+  "demoRunId": "78617ed1-ecf0-4f26-8b54-cc45d80a604c",
+  "chainId": 84532,
+  "function": "approve",
+  "functionArgs": "[\"0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27\",\"5000000\"]",
+  "success": true,
+  "wouldRevert": false,
+  "gasEstimate": "46618",
+  "simulatedReturnValue": "true",
+  "revertReason": null,
+  "observedAt": "2026-08-13T00:36:43.321Z"
+}

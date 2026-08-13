@@ -1,0 +1,153 @@
+{
+  "milestone": "M10",
+  "demoRunId": "78617ed1-ecf0-4f26-8b54-cc45d80a604c",
+  "network": "Base Sepolia",
+  "chainId": 84532,
+  "executionWallet": "0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+  "safeWallet": "0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9",
+  "startingBlock": "45406554",
+  "startingBlockTimestamp": "2026-08-13T00:36:36.286Z",
+  "preDemoSafeWalletBalance": "5000123",
+  "funding": {
+    "executionId": "eud50mmdcrtxndn21h92m",
+    "transactionHash": "0xb8e30e90a8390c5ca4319f3b05425ba2a9a101d5b601574c3dfdc5fe65bb50b4",
+    "transactionLink": "https://sepolia.basescan.org/tx/0xb8e30e90a8390c5ca4319f3b05425ba2a9a101d5b601574c3dfdc5fe65bb50b4",
+    "sponsored": true,
+    "blockNumber": "45406556"
+  },
+  "approval": {
+    "executionId": "vq75mvry62bnv07xyo82u",
+    "transactionHash": "0xff9ae53e63874f4dc0d72ab07e1d52ec84df8d68038a26782d5b10a7f817a76b",
+    "transactionLink": "https://sepolia.basescan.org/tx/0xff9ae53e63874f4dc0d72ab07e1d52ec84df8d68038a26782d5b10a7f817a76b",
+    "sponsored": true,
+    "blockNumber": "45406560"
+  },
+  "supply": {
+    "executionId": "0udzs4mllp0o6x5qbit5m",
+    "transactionHash": "0xc6d647403a228042bffe4357df17577f95c17901632fe596b5a5e0ac11fd53cd",
+    "transactionLink": "https://sepolia.basescan.org/tx/0xc6d647403a228042bffe4357df17577f95c17901632fe596b5a5e0ac11fd53cd",
+    "sponsored": true,
+    "blockNumber": "45406563"
+  },
+  "livePositionAmount": "4999999",
+  "standard": {
+    "state": "WATCHING",
+    "matchedCount": 0,
+    "observationIds": []
+  },
+  "drill": {
+    "policyId": "02cd5d07-e37b-4083-9a86-e8a4b1efc1fc",
+    "policyVersion": 22,
+    "drillLabel": "PROTECTION DRILL — HIGH-SENSITIVITY POLICY",
+    "matchedCount": 3,
+    "requiredSignals": 2,
+    "matchedFamilies": [
+      "ORACLE_PRICE_STATE",
+      "AAVE_RESERVE_STATE",
+      "POSITION_STATE"
+    ],
+    "observationIds": [
+      "9fea0bf4-2a79-4c1f-94fb-7b7409f8b0b3",
+      "6dee717a-2236-4f25-8d00-c72c2746383f",
+      "3f97f85e-b3dd-496f-873e-9e7ed46a1f76"
+    ],
+    "confirmationBlock": null,
+    "confirmedAt": "2026-08-13T00:37:42.945Z"
+  },
+  "simulation": {
+    "simulationId": "62e8b593-cfaf-46d2-8211-f38529c462b9",
+    "gasEstimate": "166333",
+    "expectedAmount": "4999999"
+  },
+  "evacuation": {
+    "executionId": "a7e0efb1-5255-4e04-8958-77bbc31a663f",
+    "keeperhubExecutionId": "6tz7ix44bpi5p81phkonv",
+    "txHash": "0x22670c665c86ad8d782fa1ff954ff4b6bf20a29d66a715378ed9d90efdff0806",
+    "transactionLink": "https://sepolia.basescan.org/tx/0x22670c665c86ad8d782fa1ff954ff4b6bf20a29d66a715378ed9d90efdff0806",
+    "sponsored": true,
+    "actualWithdrawAmount": "4999999",
+    "blockNumber": "45406597"
+  },
+  "destination": {
+    "preBalance": "5000123",
+    "postBalance": "10000122",
+    "delta": "4999999",
+    "expected": "4999999",
+    "verified": true
+  },
+  "receipt": {
+    "id": "af68d80e-c2af-4872-9a63-54d63815e291",
+    "status": "PROTECTED",
+    "verifiedAmount": "4999999"
+  },
+  "auditSequence": [
+    "CONSENSUS_REACHED",
+    "CONFIRMATION_STARTED",
+    "CONFIRMATION_PASSED",
+    "POLICY_DISARMED",
+    "POLICY_ARMED",
+    "POLICY_DISARMED",
+    "POLICY_ARMED",
+    "CONSENSUS_REACHED",
+    "CONFIRMATION_STARTED",
+    "CONFIRMATION_PASSED",
+    "PRE_EXECUTION_VALIDATION_STARTED",
+    "SIMULATION_STARTED",
+    "SIMULATION_PASSED",
+    "EXECUTION_PREPARED",
+    "PRE_EXECUTION_VALIDATION_STARTED",
+    "FINAL_SIMULATION_PASSED",
+    "KEEPERHUB_SUBMISSION_REQUESTED",
+    "KEEPERHUB_EXECUTION_ACCEPTED",
+    "TRANSACTION_CONFIRMED",
+    "WITHDRAW_EVENT_VERIFIED",
+    "DESTINATION_VERIFICATION_PENDING",
+    "DESTINATION_VERIFICATION_STARTED",
+    "DESTINATION_VERIFICATION_PASSED",
+    "RESCUE_RECEIPT_CREATED",
+    "POSITION_PROTECTED",
+    "M10_SIMULATION_PASSED",
+    "M10_KEEPERHUB_SUBMITTED",
+    "M10_STAGE_VERIFIED",
+    "M10_FUNDED",
+    "M10_SIMULATION_PASSED",
+    "M10_KEEPERHUB_SUBMITTED",
+    "M10_STAGE_VERIFIED",
+    "M10_APPROVED",
+    "M10_SIMULATION_PASSED",
+    "M10_KEEPERHUB_SUBMITTED",
+    "M10_STAGE_VERIFIED",
+    "M10_POSITION_CREATED",
+    "POLICY_DISARMED",
+    "POLICY_ARMED",
+    "POLICY_DISARMED",
+    "POLICY_ARMED",
+    "CONSENSUS_REACHED",
+    "CONFIRMATION_STARTED",
+    "CONFIRMATION_PASSED",
+    "PRE_EXECUTION_VALIDATION_STARTED",
+    "SIMULATION_STARTED",
+    "SIMULATION_PASSED",
+    "EXECUTION_PREPARED",
+    "FINAL_SIMULATION_PASSED",
+    "KEEPERHUB_SUBMISSION_REQUESTED",
+    "KEEPERHUB_EXECUTION_ACCEPTED",
+    "TRANSACTION_CONFIRMED",
+    "WITHDRAW_EVENT_VERIFIED",
+    "DESTINATION_VERIFICATION_PENDING",
+    "DESTINATION_VERIFICATION_STARTED",
+    "DESTINATION_VERIFICATION_PASSED",
+    "DESTINATION_VERIFICATION_STARTED",
+    "DESTINATION_VERIFICATION_PASSED",
+    "RESCUE_RECEIPT_CREATED",
+    "POSITION_PROTECTED"
+  ],
+  "startedAt": "2026-08-13T00:36:36.416Z",
+  "completedAt": "2026-08-13T00:43:49.377Z",
+  "secretScanPassed": true,
+  "zeroWritesProof": {
+    "keeperhubBroadcasts": 0,
+    "onchainWrites": 0
+  },
+  "verifiedAt": "2026-08-13T00:49:01.460Z"
+}

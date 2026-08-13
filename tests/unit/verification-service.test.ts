@@ -108,6 +108,7 @@ function createFakeRpc(config: { safeUsdc?: bigint; walletAUsdc?: bigint; receip
 
 const seedM7Execution = async (
   overrides: Partial<typeof executions.$inferInsert> = {},
+  withdrawAmount = "5000123",
 ): Promise<string> => {
   await disarmPolicy(db, POSITION_ID);
   await setSafeWalletConfig(db, SAFE_WALLET);
@@ -183,7 +184,7 @@ const seedM7Execution = async (
     detailsJson: JSON.stringify({
       executionId,
       transactionHash: TX,
-      actualWithdrawAmount: "5000123",
+      actualWithdrawAmount: withdrawAmount,
     }),
     blockNumber: "45399100",
   });
@@ -304,6 +305,18 @@ describe("success path", () => {
     expect(checks[0]?.verified).toBe(true);
     const receipts = await db.select().from(rescueReceipts).where(eq(rescueReceipts.executionId, executionId));
     expect(receipts).toHaveLength(1);
+  });
+
+  it.skipIf(!dbAvailable)("a prior safe-wallet balance is handled using delta, not absolute final balance", async () => {
+    // The safe wallet already holds the first rescue's 5,000,123 USDC. The M10
+    // evacuation adds ~5,000,000 more. Verification must reconcile the DELTA
+    // against the Withdraw amount, never the absolute final balance.
+    now = () => new Date("2026-08-12T12:00:00.000Z");
+    const executionId = await seedM7Execution({ preSafeWalletBalance: "5000123", prePositionAmount: "5000023" }, "5000023");
+    const result = verifiedOf(await verify(executionId, { safeUsdc: BigInt(10000146) }));
+    expect(result.delta).toBe("5000023");
+    expect(result.expectedAmount).toBe("5000023");
+    expect(result.outcome).toBe("VERIFIED");
   });
 
   it.skipIf(!dbAvailable)("a receipt is only created after verification passes", async () => {

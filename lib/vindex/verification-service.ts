@@ -19,13 +19,11 @@ import { AAVE_V3_BASE_SEPOLIA } from "./aave-registry";
 import { VINDEX_CHAIN_ID, WrongChainError } from "./chain";
 import type { VindexEnv } from "./env";
 import { VindexApiError } from "./errors";
-import {
-  createCanonicalPublicClient,
-  readCanonicalChainState,
-  type CanonicalReadClient,
-} from "./public-client";
+import { readCanonicalChainState, type CanonicalReadClient } from "./public-client";
+import { createFailoverPublicClient } from "./rpc-failover";
 import { getArmedPolicy } from "./policy-service";
 import { getAuditEvents } from "./policy-service";
+import { normalizeTransactionLink } from "./validation";
 import { canonicalPositionId } from "./position-service";
 import { validateSafeWallet } from "./safe-wallet";
 import { DRILL_LABEL, type PolicyMode } from "./policy-templates";
@@ -254,7 +252,7 @@ const buildReceiptJson = async (
     },
     transaction: {
       hash: execution.txHash,
-      link: execution.transactionLink,
+      link: normalizeTransactionLink(execution.transactionLink),
       block: execution.blockNumber,
     },
     gas: execution.lastKeeperHubStatus === "completed" ? { note: "KeeperHub reported completed; exact gas metadata retained in execution records" } : null,
@@ -284,12 +282,12 @@ const buildReceiptJson = async (
 export const verifyEvacuationDestination = async (
   options: VerifyDestinationOptions,
 ): Promise<VerificationResult> => {
-  const { env, db, executionId } = options;
+  const { db, executionId } = options;
   const now = options.now ?? (() => new Date());
   const audits: string[] = [];
 
   const rpc: CanonicalReadClient =
-    options.publicClient ?? createCanonicalPublicClient(env.baseSepoliaRpcUrl);
+    options.publicClient ?? (createFailoverPublicClient(process.env) as unknown as CanonicalReadClient);
 
   const execRows = await db
     .select()

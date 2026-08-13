@@ -20,7 +20,9 @@
     "verify:m5-consensus": "tsx --conditions=react-server scripts/verify-m5-consensus.ts",
     "verify:m6-simulation": "tsx --conditions=react-server scripts/verify-m6-simulation.ts",
     "execute:m7-evacuation": "tsx --conditions=react-server scripts/execute-m7-evacuation.ts",
-    "verify:m8-rescue": "tsx --conditions=react-server scripts/verify-m8-rescue.ts"
+    "verify:m8-rescue": "tsx --conditions=react-server scripts/verify-m8-rescue.ts",
+    "verify:m9-resilience": "tsx --conditions=react-server scripts/verify-m9-resilience.ts",
+    "demo:m10-e2e": "tsx --conditions=react-server scripts/demo-m10-e2e.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

@@ -4,6 +4,7 @@
 // all chain/KeeperHub interaction faked — no real network or transactions.
 
 import { describe, expect, it, afterAll, beforeAll } from "vitest";
+import { eq } from "drizzle-orm";
 import { keccak256, toBytes } from "viem";
 
 import { executions, signalObservations, simulations, threatDecisions } from "../../db/schema";
@@ -416,6 +417,28 @@ describe("status and onchain proof", () => {
     expect(result.readyForDestinationVerification).toBe(true);
   });
 
+  it.skipIf(!dbAvailable)("a Markdown-formatted transaction link from KeeperHub is normalized to a plain URL", async () => {
+    const { executionId } = await seedPreparedExecution();
+    const markdownLink = "[https://sepolia.basescan.org/tx/0xabababababababababababababababababababababababababababababababab](https://sepolia.basescan.org/tx/0xabababababababababababababababababababababababababababababababab)";
+    const f = execute(executionId, {
+      statusQueue: [{
+        status: "completed",
+        isTerminal: true,
+        sponsored: true,
+        transactionLink: markdownLink,
+      }],
+      aUsdcPost: BigInt(0),
+    });
+    const result = await f.result;
+    expect(result.outcome).toBe("EXECUTED_VERIFYING_DESTINATION");
+    expect(result.transactionLink).toBe(
+      "https://sepolia.basescan.org/tx/0xabababababababababababababababababababababababababababababababab",
+    );
+    expect(result.transactionLink).not.toMatch(/\]\(/);
+    const row = (await db.select().from(executions).where(eq(executions.id, executionId)))[0];
+    expect(row?.transactionLink).toBe(result.transactionLink);
+  });
+
   it.skipIf(!dbAvailable)("a non-decreasing aUSDC fails verification", async () => {
     const { executionId } = await seedPreparedExecution();
     const f = execute(executionId, { aUsdcPost: BigInt(5000077) });
@@ -426,11 +449,11 @@ describe("status and onchain proof", () => {
 });
 
 describe("boundaries", () => {
-  it("the state machine never sets PROTECTED", async () => {
+  it("the M7 state machine never assigns PROTECTED (M8 owns it)", async () => {
     const source = await import("fs/promises").then((fs) =>
       fs.readFile("lib/vindex/execution-service.ts", "utf8"),
     );
-    expect(source).not.toContain('"PROTECTED"');
+    expect(source).not.toContain('status: "PROTECTED"');
     expect(source).not.toContain("RESCUE_COMPLETE");
   });
 

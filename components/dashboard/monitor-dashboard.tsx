@@ -9,8 +9,63 @@ const POLL_INTERVAL_MS = 30_000;
 
 type LoadState =
   | { status: "loading" }
-  | { status: "error"; message: string }
+  | { status: "error"; message: string; code?: string }
   | { status: "ready"; model: PositionSnapshotModel };
+
+// Public-safe failure explanations per error category. APIs/UI must never
+// expose raw provider errors — only sanitized codes and honest copy.
+const FAILURE_META: Record<string, { title: string; fundsMoved: string; next: string }> = {
+  KEEPERHUB_UNAVAILABLE: {
+    title: "KEEPERHUB UNAVAILABLE",
+    fundsMoved: "No transaction was submitted.",
+    next: "Vindex will retry read-only checks. KeeperHub is the only execution layer — no direct-RPC fallback exists.",
+  },
+  KEEPERHUB_UNAUTHENTICATED: {
+    title: "KEEPERHUB UNAUTHENTICATED",
+    fundsMoved: "No transaction was submitted.",
+    next: "Re-issue a valid KeeperHub organization key and re-run the operator command.",
+  },
+  RPC_UNAVAILABLE: {
+    title: "RPC UNAVAILABLE",
+    fundsMoved: "No funds were moved on this route.",
+    next: "Read-only retries will use the configured fallback RPC endpoints.",
+  },
+  RPC_ALL_UNAVAILABLE: {
+    title: "RPC ALL UNAVAILABLE",
+    fundsMoved: "No funds were moved on this route.",
+    next: "All configured Base Sepolia RPC endpoints are unreachable. Monitoring resumes when a read path returns.",
+  },
+  WRONG_CHAIN: {
+    title: "WRONG CHAIN",
+    fundsMoved: "No funds were moved.",
+    next: "Execution requires Base Sepolia (84532). The RPC endpoints are verified per request.",
+  },
+  STALE_EVIDENCE: {
+    title: "STALE DATA",
+    fundsMoved: "No funds were moved.",
+    next: "Stale evidence cannot authorize a decision. Fresh live observations are required.",
+  },
+  SIMULATION_REVERTED: {
+    title: "SIMULATION REVERTED",
+    fundsMoved: "No transaction was submitted.",
+    next: "The intended withdrawal would revert on the current chain state. The failure is audited; no automatic retry.",
+  },
+  SUBMISSION_UNKNOWN: {
+    title: "EXECUTION UNKNOWN",
+    fundsMoved: "Unknown — being recovered.",
+    next: "Submission outcome is being recovered with the same idempotency key. Vindex will not send another withdrawal.",
+  },
+  EXECUTION_PENDING: {
+    title: "EXECUTION PENDING",
+    fundsMoved: "Unknown — being recovered.",
+    next: "The KeeperHub execution status is still pending. Vindex polls status; it does not rebroadcast.",
+  },
+  INTERVENTION_REQUIRED: {
+    title: "INTERVENTION REQUIRED",
+    fundsMoved: "The transaction executed, but destination verification did not reconcile.",
+    next: "No automatic retry will move funds again. Inspect the audit trail and reconcile manually.",
+  },
+};
 
 const statusLabel = (model: PositionSnapshotModel): string => {
   const { readiness } = model;
@@ -180,10 +235,11 @@ export function MonitorDashboard() {
       fetch("/api/vindex/positions/current", { cache: "no-store" })
         .then(async (response) => {
           if (!response.ok) {
-            const body = await response.json().catch(() => null);
+            const body = (await response.json().catch(() => null)) as { message?: string; error?: string } | null;
             return {
               ok: false as const,
-              message: (body as { message?: string } | null)?.message ?? "Position data is unavailable right now.",
+              message: body?.message ?? "Position data is unavailable right now.",
+              code: body?.error,
             };
           }
           return { ok: true as const, model: (await response.json()) as PositionSnapshotModel };
@@ -191,7 +247,7 @@ export function MonitorDashboard() {
         .then((result) => {
           if (cancelled) return;
           if (result.ok) setState({ status: "ready", model: result.model });
-          else setState({ status: "error", message: result.message });
+          else setState({ status: "error", message: result.message, code: result.code });
         })
         .catch(() => {
           if (!cancelled) {
@@ -377,9 +433,13 @@ export function MonitorDashboard() {
         <section className="outline-panel monitor-lower" role="status">
           <div className="route-card__footer">
             <div>
-              <p className="data-label">UNAVAILABLE</p>
+              <p className="data-label">{state.code !== undefined ? (FAILURE_META[state.code]?.title ?? "UNAVAILABLE") : "UNAVAILABLE"}</p>
               <h3>{state.message}</h3>
-              <p className="muted">Check that the server environment and database are configured, then refresh.</p>
+              <p className="muted">
+                {state.code !== undefined && FAILURE_META[state.code] !== undefined
+                  ? `${FAILURE_META[state.code].fundsMoved} ${FAILURE_META[state.code].next}`
+                  : "Check that the server environment and database are configured, then refresh. No transaction was submitted."}
+              </p>
             </div>
             <button className="secondary-button" type="button" onClick={() => void refresh()}>Retry</button>
           </div>

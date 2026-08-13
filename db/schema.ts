@@ -255,3 +255,37 @@ export const rescueReceipts = pgTable(
 
 export type VerificationCheckRow = typeof verificationChecks.$inferSelect;
 export type RescueReceiptRow = typeof rescueReceipts.$inferSelect;
+
+// M10: durable orchestration record for the end-to-end demo run. One active
+// run at a time (partial unique index over non-terminal statuses). Every
+// external write is recoverable from this row via its persisted execution ids.
+export const demoRuns = pgTable(
+  "demo_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    status: varchar("status", { length: 32 }).notNull().default("CREATED"),
+    positionId: varchar("position_id", { length: 128 }).notNull(),
+    fundingExecutionId: varchar("funding_execution_id", { length: 128 }),
+    approvalExecutionId: varchar("approval_execution_id", { length: 128 }),
+    supplyExecutionId: varchar("supply_execution_id", { length: 128 }),
+    policyId: uuid("policy_id"),
+    decisionId: uuid("decision_id"),
+    evacuationExecutionId: uuid("evacuation_execution_id"),
+    rescueReceiptId: uuid("rescue_receipt_id"),
+    startingBlockNumber: text("starting_block_number"),
+    startingBlockTimestamp: timestamp("starting_block_timestamp", { withTimezone: true }),
+    preDemoSafeWalletBalance: text("pre_demo_safe_wallet_balance"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    errorCode: varchar("error_code", { length: 64 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("demo_runs_active_uniq")
+      .on(table.id)
+      .where(sql`${table.status} not in ('PROTECTED', 'FAILED')`),
+  ],
+);
+
+export type DemoRunRow = typeof demoRuns.$inferSelect;

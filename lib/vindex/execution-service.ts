@@ -28,14 +28,12 @@ import {
   type DirectExecutionStatus,
   type KeeperHubClient,
 } from "./keeperhub";
-import {
-  createCanonicalPublicClient,
-  readCanonicalChainState,
-  type CanonicalReadClient,
-} from "./public-client";
+import { readCanonicalChainState, type CanonicalReadClient } from "./public-client";
+import { createFailoverPublicClient } from "./rpc-failover";
 import { getArmedPolicy } from "./policy-service";
 import { canonicalPositionId } from "./position-service";
 import { getSafeWalletConfig } from "./safe-wallet";
+import { normalizeTransactionLink } from "./validation";
 import { exitParametersHash } from "./evacuation-service";
 
 export const M7_POLL_TIMEOUT_MS = 240_000;
@@ -80,7 +78,9 @@ export type ExecutionState =
   | "SUBMISSION_UNKNOWN"
   | "EXECUTION_PENDING"
   | "EXECUTION_FAILED"
-  | "EXECUTED_VERIFYING_DESTINATION";
+  | "EXECUTED_VERIFYING_DESTINATION"
+  | "PROTECTED"
+  | "INTERVENTION_REQUIRED";
 
 export type ExecutionResult = {
   outcome: ExecutionState | "M7_ALREADY_EXECUTED";
@@ -131,7 +131,7 @@ export const executeEvacuation = async (
     options.keeperHubClient ??
     createKeeperHubClient({ apiKey: env.keeperhubApiKey, baseUrl: env.keeperhubApiBaseUrl });
   const rpc: CanonicalReadClient =
-    options.publicClient ?? createCanonicalPublicClient(env.baseSepoliaRpcUrl);
+    options.publicClient ?? (createFailoverPublicClient(process.env) as unknown as CanonicalReadClient);
 
   const { pool, usdcUnderlying } = AAVE_V3_BASE_SEPOLIA;
 
@@ -430,7 +430,16 @@ export const executeEvacuation = async (
       if (current.status === "EXECUTED_VERIFYING_DESTINATION") {
         return { ...resultBase("M7_ALREADY_EXECUTED"), transactionHash: current.txHash };
       }
-      return resultBase(current.status as ExecutionState);
+      if (current.status === "PROTECTED") {
+        return { ...resultBase("M7_ALREADY_EXECUTED"), transactionHash: current.txHash };
+      }
+      return {
+        ...resultBase(current.status as ExecutionState),
+        keeperhubExecutionId: current.keeperhubExecutionId,
+        status: current.lastKeeperHubStatus,
+        transactionHash: current.txHash,
+        transactionLink: current.transactionLink,
+      };
     }
     throw new VindexApiError("BAD_REQUEST", "Execution claim lost.", 409);
   }
@@ -474,7 +483,14 @@ const submitWithKey = async (
       .update(executions)
       .set({ status: "SUBMISSION_UNKNOWN", submissionError: "Broadcast result unknown (timeout/network)", updatedAt: now() })
       .where(eq(executions.id, executionId));
-    await writeAudit(db, positionId, "SUBMISSION_UNKNOWN", { executionId, idempotencyKey }, decisionId);
+    await writeAudit(db, positionId, "SUBMISSION_UNKNOWN", {
+      executionId,
+      idempotencyKey,
+      previousState: "SUBMISSION_PENDING",
+      nextState: "SUBMISSION_UNKNOWN",
+      errorCode: "SUBMISSION_UNKNOWN",
+      recovery: "recover with the SAME idempotency key / known executionId; never rebroadcast as new work",
+    }, decisionId);
     return { state: "SUBMISSION_UNKNOWN", keeperhubExecutionId: null };
   }
 
@@ -594,7 +610,7 @@ const pollAndVerify = async (ctx: VerifyContext): Promise<ExecutionResult> => {
       .update(executions)
       .set({ status: "EXECUTION_FAILED", errorCode, submissionError: reason.slice(0, 500), updatedAt: now() })
       .where(eq(executions.id, executionId));
-    await writeAudit(db, positionId, "EXECUTION_FAILED", { executionId, keeperhubExecutionId, reason }, decisionId);
+    await writeAudit(db, positionId, "EXECUTION_FAILED", { executionId, keeperhubExecutionId, previousState: "EXECUTION_PENDING", nextState: "EXECUTION_FAILED", errorCode, reason }, decisionId);
     return {
       outcome: "EXECUTION_FAILED",
       executionId,
@@ -650,13 +666,13 @@ const pollAndVerify = async (ctx: VerifyContext): Promise<ExecutionResult> => {
     .set({
       status: "EXECUTION_PENDING",
       txHash: transactionHash,
-      transactionLink: status.transactionLink,
+      transactionLink: normalizeTransactionLink(status.transactionLink),
       sponsored: status.sponsored ?? null,
       lastKeeperHubStatus: "completed",
       updatedAt: now(),
     })
     .where(eq(executions.id, executionId));
-  await writeAudit(db, positionId, "TRANSACTION_CONFIRMED", { executionId, keeperhubExecutionId, transactionHash, transactionLink: status.transactionLink, sponsored: status.sponsored ?? null }, decisionId, transactionHash);
+  await writeAudit(db, positionId, "TRANSACTION_CONFIRMED", { executionId, keeperhubExecutionId, transactionHash, transactionLink: normalizeTransactionLink(status.transactionLink), sponsored: status.sponsored ?? null }, decisionId, transactionHash);
 
   let receipt;
   try {
@@ -736,7 +752,7 @@ const pollAndVerify = async (ctx: VerifyContext): Promise<ExecutionResult> => {
     keeperhubExecutionId,
     status: "completed",
     transactionHash,
-    transactionLink: status.transactionLink,
+    transactionLink: normalizeTransactionLink(status.transactionLink),
     sponsored: status.sponsored ?? null,
     actualWithdrawAmount: withdrawEvent.amount.toString(),
     prePositionAmount: row?.prePositionAmount ?? null,
