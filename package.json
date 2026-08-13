@@ -12,6 +12,7 @@
     "verify:foundation": "tsx --conditions=react-server scripts/verify-foundation.ts",
     "verify:m1-execution": "tsx --conditions=react-server scripts/verify-m1-execution.ts",
     "test:e2e": "playwright test",
+    "telegram:webhook": "tsx scripts/register-telegram-webhook.ts",
     "verify:m2-position": "tsx --conditions=react-server scripts/verify-m2-position.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
