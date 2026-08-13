@@ -27,6 +27,8 @@ export type VindexErrorCode =
   | "SERVER_NOT_CONFIGURED"
   | "UNKNOWN_FIELD"
   | "BAD_REQUEST"
+  | "NO_ACTIVE_RUN"
+  | "IN_FLIGHT_JOB"
   | "POLICY_ARMED_RECONFIGURE_REQUIRED";
 
 export class VindexApiError extends Error {
@@ -67,6 +69,8 @@ const DEFAULT_STATUS: Record<VindexErrorCode, number> = {
   SERVER_NOT_CONFIGURED: 503,
   UNKNOWN_FIELD: 400,
   BAD_REQUEST: 400,
+  NO_ACTIVE_RUN: 409,
+  IN_FLIGHT_JOB: 409,
   POLICY_ARMED_RECONFIGURE_REQUIRED: 409,
 };
 

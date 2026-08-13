@@ -57,6 +57,13 @@
       "when": 1786580049670,
       "tag": "0007_lazy_titania",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786624801828,
+      "tag": "0008_freezing_stranger",
+      "breakpoints": true
     }
   ]
 }

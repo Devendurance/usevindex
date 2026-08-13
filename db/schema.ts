@@ -283,7 +283,7 @@ export const demoRuns = pgTable(
   },
   (table) => [
     uniqueIndex("demo_runs_active_uniq")
-      .on(table.id)
+      .on(table.positionId)
       .where(sql`${table.status} not in ('PROTECTED', 'FAILED')`),
   ],
 );

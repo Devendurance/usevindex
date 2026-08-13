@@ -1,0 +1,2 @@
+DROP INDEX "demo_runs_active_uniq";--> statement-breakpoint
+CREATE UNIQUE INDEX "demo_runs_active_uniq" ON "demo_runs" USING btree ("position_id") WHERE "demo_runs"."status" not in ('PROTECTED', 'FAILED');
