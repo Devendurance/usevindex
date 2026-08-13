@@ -296,10 +296,20 @@ export const disarmPolicy = async (
     return { alreadyDisarmed: true, policy: null };
   }
   const disarmedAt = now();
-  await db
+  const updated = await db
     .update(protectionPolicies)
     .set({ isArmed: false, disarmedAt, updatedAt: disarmedAt })
-    .where(eq(protectionPolicies.id, armed.id));
+    .where(
+      and(
+        eq(protectionPolicies.id, armed.id),
+        eq(protectionPolicies.isArmed, true),
+      ),
+    )
+    .returning({ id: protectionPolicies.id });
+  if (updated.length === 0) {
+    // A concurrent disarm won the race; the policy is already settled.
+    return { alreadyDisarmed: true, policy: null };
+  }
 
   // Close any active decision window so a later arm starts clean.
   await db
@@ -340,14 +350,18 @@ export const settleCompletedProtection = async (
       ),
     );
   const result = await disarmPolicy(db, positionId, now);
-  for (const decision of activeDecisions) {
-    await writeAudit(
-      db,
-      positionId,
-      "DECISION_RESOLVED",
-      { decisionId: decision.id, ...decisionDetails(decision) },
-      decision.id,
-    );
+  if (!result.alreadyDisarmed) {
+    // Only the call that actually performed the disarm appends the
+    // resolution audit; a concurrent settle that lost the race is a no-op.
+    for (const decision of activeDecisions) {
+      await writeAudit(
+        db,
+        positionId,
+        "DECISION_RESOLVED",
+        { decisionId: decision.id, ...decisionDetails(decision) },
+        decision.id,
+      );
+    }
   }
   return result;
 };

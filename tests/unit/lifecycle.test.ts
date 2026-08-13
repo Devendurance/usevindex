@@ -279,19 +279,23 @@ describe("post-PROTECTED lifecycle settlement", () => {
       env: ENV, db, positionId: POSITION_ID, mode: "DRILL_HIGH_SENSITIVITY",
       publicClient: createFakeRpc({ walletAUsdc: BigInt(5000123) }), keeperHubClient: createFakeKeeperHub(), now,
     });
-    await db.insert(threatDecisions).values({
-      positionId: POSITION_ID,
-      policyId: policy.id,
-      policyVersion: policy.version,
-      state: "CONFIRMING",
-      matchedCount: 3,
-      contributingSignalIds: "[]",
-      matchedFamiliesJson: "[]",
-      reasonJson: "{}",
-      windowStartedAt: now(),
-      confirmedAt: now(),
-      expiresAt: new Date(now().getTime() + 3600 * 1000),
-    });
+    const decisionRows = await db
+      .insert(threatDecisions)
+      .values({
+        positionId: POSITION_ID,
+        policyId: policy.id,
+        policyVersion: policy.version,
+        state: "CONFIRMING",
+        matchedCount: 3,
+        contributingSignalIds: "[]",
+        matchedFamiliesJson: "[]",
+        reasonJson: "{}",
+        windowStartedAt: now(),
+        confirmedAt: now(),
+        expiresAt: new Date(now().getTime() + 3600 * 1000),
+      })
+      .returning({ id: threatDecisions.id });
+    const decisionId = decisionRows[0].id;
 
     const before = await auditTypes();
     const countBefore = (type: string) => before.filter((t) => t === type).length;
@@ -301,12 +305,46 @@ describe("post-PROTECTED lifecycle settlement", () => {
     expect(mid.filter((t) => t === "POLICY_DISARMED")).toHaveLength(countBefore("POLICY_DISARMED") + 1);
     expect(mid.filter((t) => t === "DECISION_RESOLVED")).toHaveLength(countBefore("DECISION_RESOLVED") + 1);
 
+    // The resolution audit documents the snapshot state and links the row.
+    const resolvedRows = await db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.eventType, "DECISION_RESOLVED"));
+    const resolved = resolvedRows.find((row) => row.decisionId === decisionId);
+    expect(resolved).toBeDefined();
+    expect(resolved?.positionId).toBe(POSITION_ID);
+    expect((JSON.parse(resolved?.detailsJson ?? "{}") as { state?: string }).state).toBe("CONFIRMING");
+
     const second = await settleCompletedProtection(db, POSITION_ID, now);
     expect(second.alreadyDisarmed).toBe(true);
     const after = await auditTypes();
     expect(after).toHaveLength(mid.length);
     expect(after.filter((t) => t === "POLICY_DISARMED")).toHaveLength(countBefore("POLICY_DISARMED") + 1);
     expect(after.filter((t) => t === "DECISION_RESOLVED")).toHaveLength(countBefore("DECISION_RESOLVED") + 1);
+  });
+
+  it.skipIf(!dbAvailable)("concurrent settles append a single settlement audit set", async () => {
+    now = () => new Date("2026-08-12T12:00:00.000Z");
+    const seeded = await seedProtectedSession();
+    const before = await auditTypes();
+    const countBefore = (type: string) => before.filter((t) => t === type).length;
+
+    const [a, b] = await Promise.all([
+      settleCompletedProtection(db, POSITION_ID, now),
+      settleCompletedProtection(db, POSITION_ID, now),
+    ]);
+    // Exactly one call wins the disarm; the loser is a no-op.
+    expect([a, b].filter((r) => r.alreadyDisarmed === false)).toHaveLength(1);
+    expect([a, b].filter((r) => r.alreadyDisarmed === true)).toHaveLength(1);
+
+    const after = await auditTypes();
+    expect(after.filter((t) => t === "POLICY_DISARMED")).toHaveLength(countBefore("POLICY_DISARMED") + 1);
+    expect(after.filter((t) => t === "DECISION_RESOLVED")).toHaveLength(countBefore("DECISION_RESOLVED") + 1);
+    const resolvedRows = await db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.eventType, "DECISION_RESOLVED"));
+    expect(resolvedRows.filter((row) => row.decisionId === seeded.decisionId)).toHaveLength(1);
   });
 
   it.skipIf(!dbAvailable)("settle preserves every historical row", async () => {
