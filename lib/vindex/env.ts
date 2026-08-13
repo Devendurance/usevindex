@@ -64,3 +64,19 @@ export function isServerEnvComplete(env: NodeJS.ProcessEnv = process.env): boole
     throw error;
   }
 }
+
+export type TelegramEnv = {
+  botToken: string;
+  botUsername: string;
+  webhookSecret: string;
+};
+
+// Telegram alerting is optional and best-effort: alerts never block the
+// protection state machine, so these variables are NOT part of REQUIRED_ENV_VARS.
+export function getTelegramEnv(env: NodeJS.ProcessEnv = process.env): TelegramEnv | null {
+  const botToken = env.TELEGRAM_BOT_TOKEN?.trim();
+  const botUsername = env.TELEGRAM_BOT_USERNAME?.trim();
+  const webhookSecret = env.TELEGRAM_WEBHOOK_SECRET?.trim();
+  if (!botToken || !botUsername || !webhookSecret) return null;
+  return { botToken, botUsername, webhookSecret };
+}

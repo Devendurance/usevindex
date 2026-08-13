@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getServerEnv, isServerEnvComplete, VindexEnvError } from "../../lib/vindex/env";
+import { getServerEnv, getTelegramEnv, isServerEnvComplete, VindexEnvError } from "../../lib/vindex/env";
 
 const VALID_RPC_URL = "https://sepolia.base.org";
 const VALID_API_KEY = "kh_ABCDEF0123456789";
@@ -111,5 +111,31 @@ describe("isServerEnvComplete", () => {
         testEnv({ BASE_SEPOLIA_RPC_URL: VALID_RPC_URL, KEEPERHUB_API_KEY: VALID_API_KEY }),
       ),
     ).toBe(true);
+  });
+});
+
+describe("getTelegramEnv", () => {
+  it("returns null when any Telegram variable is missing", () => {
+    expect(getTelegramEnv(testEnv({ TELEGRAM_BOT_TOKEN: "123:abc", TELEGRAM_BOT_USERNAME: "VindexAlertsBot" }))).toBeNull();
+    expect(getTelegramEnv(testEnv({ TELEGRAM_BOT_TOKEN: "123:abc", TELEGRAM_WEBHOOK_SECRET: "s" }))).toBeNull();
+    expect(getTelegramEnv(testEnv({}))).toBeNull();
+    expect(getTelegramEnv(testEnv({ TELEGRAM_BOT_TOKEN: "   ", TELEGRAM_BOT_USERNAME: "B", TELEGRAM_WEBHOOK_SECRET: "s" }))).toBeNull();
+  });
+
+  it("returns trimmed values when all three are set", () => {
+    const env = getTelegramEnv(
+      testEnv({
+        TELEGRAM_BOT_TOKEN: " 123:abc ",
+        TELEGRAM_BOT_USERNAME: " VindexAlertsBot ",
+        TELEGRAM_WEBHOOK_SECRET: " long-random-secret ",
+      }),
+    );
+    expect(env).toEqual({ botToken: "123:abc", botUsername: "VindexAlertsBot", webhookSecret: "long-random-secret" });
+  });
+
+  it("getServerEnv does not require Telegram variables", () => {
+    expect(() =>
+      getServerEnv(testEnv({ BASE_SEPOLIA_RPC_URL: "https://sepolia.base.org", KEEPERHUB_API_KEY: "kh_test_key_123456" })),
+    ).not.toThrow();
   });
 });
