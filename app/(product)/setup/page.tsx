@@ -11,7 +11,6 @@ export default function SetupPage() {
           <section className="setup-route-preview">
             <h2>Your protected route</h2>
             <div className="setup-route-preview__sequence">{["WATCH", "CONFIRM", "EXIT", "VERIFY"].map((step, index) => <div key={step}><span>0{index + 1}</span><p>{step}</p></div>)}</div>
-            <div className="not-armed"><span className="state-heading__mark">—</span><strong>Not armed</strong><p className="muted">Complete the configuration to arm this position.</p></div>
             <RouteDiagram />
           </section>
         </div>

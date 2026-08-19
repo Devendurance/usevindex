@@ -8,25 +8,48 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test:e2e": "playwright test"
+    "test:unit": "vitest run",
+    "verify:foundation": "tsx --conditions=react-server scripts/verify-foundation.ts",
+    "verify:m1-execution": "tsx --conditions=react-server scripts/verify-m1-execution.ts",
+    "test:e2e": "playwright test",
+    "telegram:webhook": "tsx scripts/register-telegram-webhook.ts",
+    "verify:m2-position": "tsx --conditions=react-server scripts/verify-m2-position.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "verify:m3-dashboard": "tsx --conditions=react-server scripts/verify-m3-dashboard.ts",
+    "verify:m4-signals": "tsx --conditions=react-server scripts/verify-m4-signals.ts",
+    "verify:m5-consensus": "tsx --conditions=react-server scripts/verify-m5-consensus.ts",
+    "verify:m6-simulation": "tsx --conditions=react-server scripts/verify-m6-simulation.ts",
+    "execute:m7-evacuation": "tsx --conditions=react-server scripts/execute-m7-evacuation.ts",
+    "verify:m8-rescue": "tsx --conditions=react-server scripts/verify-m8-rescue.ts",
+    "verify:m9-resilience": "tsx --conditions=react-server scripts/verify-m9-resilience.ts",
+    "demo:m10-e2e": "tsx --conditions=react-server scripts/demo-m10-e2e.ts"
   },
   "dependencies": {
+    "drizzle-orm": "^0.45.2",
     "lenis": "^1.3.26",
     "lucide-react": "^1.31.0",
     "next": "16.3.0",
+    "postgres": "^3.4.9",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
+    "viem": "^2.55.13"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@playwright/test": "^1.55.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
-    "@axe-core/playwright": "^4.10.2",
-    "@playwright/test": "^1.55.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "tsx": "^4.23.12",
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }

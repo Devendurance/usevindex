@@ -1,0 +1,76 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1786533694205,
+      "tag": "0000_bent_purple_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786547022847,
+      "tag": "0001_normal_secret_warriors",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786549364902,
+      "tag": "0002_peaceful_surge",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786552654806,
+      "tag": "0003_dashing_molten_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786552740973,
+      "tag": "0004_same_anthem",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786555450419,
+      "tag": "0005_sleepy_salo",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786568123883,
+      "tag": "0006_married_rachel_grey",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786580049670,
+      "tag": "0007_lazy_titania",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786624801828,
+      "tag": "0008_freezing_stranger",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786635661489,
+      "tag": "0009_outstanding_mandrill",
+      "breakpoints": true
+    }
+  ]
+}

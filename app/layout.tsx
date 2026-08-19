@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Inter_Tight } from "next/font/google";
+import { ScrollExperience } from "@/components/shell/scroll-experience";
+import "lenis/dist/lenis.css";
 import "./globals.css";
 
 const inter = Inter({
@@ -22,7 +24,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" data-scroll-behavior="smooth" className={`${inter.variable} ${interTight.variable}`}>
-      <body>{children}</body>
+      <body>
+        <ScrollExperience />
+        {children}
+      </body>
     </html>
   );
 }

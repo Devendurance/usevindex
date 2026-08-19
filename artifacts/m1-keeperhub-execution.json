@@ -1,0 +1,29 @@
+{
+  "milestone": "M1",
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "keeperHubWallet": "0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+  "executionId": "1jqv3c5ztxs4pswzb7fkl",
+  "transactionHash": "0x9fe7b51adec3b6a7b71ab8b73cf8b3fff23465cc8509ec34194d987308edb605",
+  "transactionLink": "https://sepolia.basescan.org/tx/0x9fe7b51adec3b6a7b71ab8b73cf8b3fff23465cc8509ec34194d987308edb605",
+  "blockNumber": 45379319,
+  "contractAddress": "0xba50Cd2A20f6DA35D788639E581bca8d0B5d4D5f",
+  "functionName": "approve",
+  "spender": "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27",
+  "amountBaseUnits": "1",
+  "allowanceBefore": "0",
+  "allowanceAfter": "1",
+  "gasUsedWei": "95603",
+  "keeperHubStatus": "completed",
+  "onchainReceiptStatus": "success",
+  "executedAt": "2026-08-12T09:28:44.178Z",
+  "verifiedAt": "2026-08-12T09:40:26.088Z",
+  "approvalLog": {
+    "owner": "0x675638DdbbF8B70b906d68e3485Da72c6C63d130",
+    "spender": "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27",
+    "value": "1"
+  },
+  "sponsored": true,
+  "executorAddress": "0x5af5194b4b0909eb978e3cf1e25333852277f07d",
+  "simulation": null
+}

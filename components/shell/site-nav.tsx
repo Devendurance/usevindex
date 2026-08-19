@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { BrandMark } from "@/components/vindex/brand-mark";
 
 const marketingLinks = [
@@ -25,6 +25,7 @@ export function SiteNav({ variant = "marketing" }: { variant?: "marketing" | "pr
   const links = variant === "marketing" ? marketingLinks : productLinks;
 
   const isActive = (href: string) => {
+    if (href.includes("#")) return false;
     const path = href.split("#")[0] || "/";
     if (path === "/") return pathname === "/";
     return pathname === path || pathname.startsWith(`${path}/`);
@@ -32,22 +33,18 @@ export function SiteNav({ variant = "marketing" }: { variant?: "marketing" | "pr
 
   const closeMenu = () => setOpen(false);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-        menuButtonRef.current?.focus();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  const closeMenuFromKeyboard = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    menuButtonRef.current?.focus();
+    setOpen(false);
+  };
 
   return (
     <header className={`site-nav site-nav--${variant}`}>
       <div className="content-wrap site-nav__inner">
-        <Link href={variant === "marketing" ? "/" : "/monitor"} className="site-nav__brand" aria-label="Vindex home">
+        <Link href="/" className="site-nav__brand" aria-label="Vindex home">
           <BrandMark />
         </Link>
 
@@ -60,11 +57,14 @@ export function SiteNav({ variant = "marketing" }: { variant?: "marketing" | "pr
         </nav>
 
         <div className="site-nav__actions">
-          {variant === "marketing" ? (
-            <Link className="secondary-button site-nav__demo" href="/demo">View demo</Link>
-          ) : (
-            <Link className="secondary-button site-nav__demo" href="/demo">View demo</Link>
-          )}
+          <Link
+            className="secondary-button secondary-button--layered site-nav__demo"
+            href="/demo"
+            aria-current={isActive("/demo") ? "page" : undefined}
+            onClick={closeMenu}
+          >
+            View demo
+          </Link>
           <button
             ref={menuButtonRef}
             className="icon-button site-nav__menu-button"
@@ -79,12 +79,16 @@ export function SiteNav({ variant = "marketing" }: { variant?: "marketing" | "pr
         </div>
       </div>
 
-      <div id="mobile-navigation" className={`mobile-nav${open ? " is-open" : ""}`}>
+      <div
+        id="mobile-navigation"
+        className={`mobile-nav${open ? " is-open" : ""}`}
+        onKeyDownCapture={closeMenuFromKeyboard}
+      >
         <nav aria-label="Mobile navigation">
           {links.map((link) => (
             <Link key={link.href} href={link.href} className={isActive(link.href) ? "is-active" : ""} aria-current={isActive(link.href) ? "page" : undefined} onClick={closeMenu}>{link.label}</Link>
           ))}
-          <Link href="/demo" aria-current={pathname === "/demo" ? "page" : undefined} onClick={closeMenu}>View demo</Link>
+          <Link href="/demo" className={isActive("/demo") ? "is-active" : ""} aria-current={isActive("/demo") ? "page" : undefined} onClick={closeMenu}>View demo</Link>
         </nav>
       </div>
     </header>

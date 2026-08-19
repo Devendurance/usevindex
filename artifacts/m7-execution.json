@@ -1,0 +1,58 @@
+{
+  "milestone": "M7",
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "protocol": "Aave V3",
+  "positionId": "base-sepolia:aave-v3:usdc:0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+  "decision": {
+    "id": "ad531e71-668e-4886-9af1-be7fc65bb84a",
+    "policyId": "334d5fef-142d-4fc4-b193-4dcf4628bd6f",
+    "policyMode": "DRILL_HIGH_SENSITIVITY",
+    "policyVersion": 20,
+    "confirmedAt": "2026-08-12T20:27:16.199Z",
+    "expiresAt": "2026-08-12T21:27:16.199Z"
+  },
+  "execution": {
+    "id": "aa08f562-5213-4c4d-a94c-7f918cbc2c91",
+    "state": "EXECUTED_VERIFYING_DESTINATION",
+    "target": "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27",
+    "asset": "0xba50Cd2A20f6DA35D788639E581bca8d0B5d4D5f",
+    "safeWallet": "0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9",
+    "parametersHash": "8a62309d66ed073a1a426ddbba6e11a3d75f0331dc841f47f359bd7c28184707",
+    "idempotencyKey": "vindex-m7-aa08f562-5213-4c4d-a94c-7f918cbc2c91-8a62309d",
+    "broadcastRequestHash": null,
+    "prePositionAmount": "5000123",
+    "preSafeWalletBalance": "0",
+    "preBlockNumber": "45399096"
+  },
+  "keeperhub": {
+    "executionId": "yh9n0pvm1x4tm23lgq3ed",
+    "status": "completed",
+    "sponsored": true,
+    "transactionHash": "0x14e84855f63b09831fc7e23ccc31f009acf6f73fb5eb483e745d0954d2777cc5",
+    "transactionLink": "https://sepolia.basescan.org/tx/0x14e84855f63b09831fc7e23ccc31f009acf6f73fb5eb483e745d0954d2777cc5"
+  },
+  "onchain": {
+    "receiptStatus": "success",
+    "blockNumber": "45399100",
+    "actualWithdrawAmount": "5000123",
+    "postPositionAmount": "0",
+    "withDrawEventVerified": true
+  },
+  "auditEvents": [
+    "DESTINATION_VERIFICATION_PENDING",
+    "WITHDRAW_EVENT_VERIFIED",
+    "TRANSACTION_CONFIRMED",
+    "KEEPERHUB_EXECUTION_ACCEPTED",
+    "KEEPERHUB_SUBMISSION_REQUESTED",
+    "FINAL_SIMULATION_PASSED",
+    "PRE_EXECUTION_VALIDATION_STARTED",
+    "EXECUTION_PREPARED",
+    "SIMULATION_PASSED",
+    "SIMULATION_STARTED",
+    "PRE_EXECUTION_VALIDATION_STARTED",
+    "CONFIRMATION_PASSED"
+  ],
+  "secretScanPassed": true,
+  "verifiedAt": "2026-08-12T20:28:14.017Z"
+}

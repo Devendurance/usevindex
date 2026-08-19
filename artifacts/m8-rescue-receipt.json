@@ -1,0 +1,46 @@
+{
+  "milestone": "M8",
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "protocol": "Aave V3",
+  "positionId": "base-sepolia:aave-v3:usdc:0x675638ddbbf8b70b906d68e3485da72c6c63d130",
+  "execution": {
+    "id": "aa08f562-5213-4c4d-a94c-7f918cbc2c91",
+    "status": "PROTECTED",
+    "keeperhubExecutionId": "yh9n0pvm1x4tm23lgq3ed",
+    "txHash": "0x14e84855f63b09831fc7e23ccc31f009acf6f73fb5eb483e745d0954d2777cc5",
+    "transactionLink": "https://sepolia.basescan.org/tx/0x14e84855f63b09831fc7e23ccc31f009acf6f73fb5eb483e745d0954d2777cc5",
+    "blockNumber": "45399100",
+    "actualWithdrawAmount": "5000123",
+    "preSafeWalletBalance": "0"
+  },
+  "verification": {
+    "verified": true,
+    "delta": "5000123",
+    "expectedAmount": "5000123",
+    "postSafeWalletBalance": "10000122",
+    "blockNumber": "45400166",
+    "blockTimestamp": "2026-08-12T21:03:40.000Z",
+    "checksPersisted": 1
+  },
+  "receipt": {
+    "id": "715c429a-fbd3-41c6-9aca-5fcc2c6a665e",
+    "status": "PROTECTED",
+    "verifiedAmount": "5000123",
+    "destination": "0xC44685b7c78cC9C9b7f6623d7697Ac30ab0D6Dc9",
+    "policyMode": "DRILL_HIGH_SENSITIVITY"
+  },
+  "auditOrder": [
+    "DESTINATION_VERIFICATION_STARTED",
+    "DESTINATION_VERIFICATION_PASSED",
+    "RESCUE_RECEIPT_CREATED",
+    "POSITION_PROTECTED"
+  ],
+  "rerunIdempotent": true,
+  "zeroWritesProof": {
+    "keeperhubBroadcasts": 0,
+    "onchainWrites": 0
+  },
+  "secretScanPassed": true,
+  "verifiedAt": "2026-08-13T01:00:02.429Z"
+}
